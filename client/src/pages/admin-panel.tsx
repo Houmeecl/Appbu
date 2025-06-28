@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AuthLogin } from "@/components/auth-login";
+import { ETokenUSBConnector } from "@/components/etoken-usb-connector";
 import { 
   Users, 
   Monitor, 
@@ -23,7 +24,9 @@ import {
   Key,
   Activity,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  Signature,
+  Usb
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -186,7 +189,7 @@ export default function AdminPanel() {
 
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Usuarios
@@ -198,6 +201,10 @@ export default function AdminPanel() {
             <TabsTrigger value="monitoring" className="flex items-center gap-2">
               <Activity className="h-4 w-4" />
               Monitoreo
+            </TabsTrigger>
+            <TabsTrigger value="etoken" className="flex items-center gap-2">
+              <Usb className="h-4 w-4" />
+              Firma Digital
             </TabsTrigger>
             <TabsTrigger value="documents" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
@@ -287,6 +294,45 @@ export default function AdminPanel() {
               ) : (
                 <MonitoringDashboard data={monitoring as MonitoringData} />
               )}
+            </div>
+          </TabsContent>
+
+          {/* eToken Tab */}
+          <TabsContent value="etoken">
+            <div className="space-y-6">
+              <h2 className="text-2xl font-semibold">Firma Digital eToken</h2>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Signature className="h-5 w-5" />
+                    Gestión de eToken SafeNet
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    <Alert>
+                      <Usb className="h-4 w-4" />
+                      <AlertDescription>
+                        Como administrador, puedes usar el eToken para firmar documentos importantes del sistema.
+                        Conecta tu eToken SafeNet USB para comenzar.
+                      </AlertDescription>
+                    </Alert>
+
+                    <ETokenUSBConnector userRole="admin" />
+                    
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <h4 className="font-semibold text-blue-900 mb-2">Capacidades del Administrador</h4>
+                      <ul className="text-sm text-blue-700 space-y-1">
+                        <li>• Firmar contratos de servicios para nuevos POS</li>
+                        <li>• Certificar documentos críticos del sistema</li>
+                        <li>• Supervisar el proceso de firma de certificadores</li>
+                        <li>• Generar documentos oficiales con firma avanzada</li>
+                      </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 

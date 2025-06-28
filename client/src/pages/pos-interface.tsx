@@ -31,6 +31,7 @@ export default function POSInterface() {
     name: "",
     rut: "",
     phone: "",
+    email: "",
   });
   
   const { location, error: locationError } = useGeolocation();
@@ -253,6 +254,7 @@ export default function POSInterface() {
       clientName: clientData.name || "Cliente POS",
       clientRut: clientData.rut || "12345678-9",
       clientPhone: clientData.phone,
+      clientEmail: clientData.email,
       posTerminalId: 1,
       status: "pending",
       content: {
@@ -299,7 +301,7 @@ export default function POSInterface() {
     setSelectedDocument(null);
     setCapturedPhoto(null);
     setSignature(null);
-    setClientData({ name: "", rut: "", phone: "" });
+    setClientData({ name: "", rut: "", phone: "", email: "" });
   };
 
   const DocumentCreationContent = () => (
@@ -410,6 +412,19 @@ export default function POSInterface() {
                   value={clientData.phone}
                   onChange={(e) => setClientData(prev => ({ ...prev, phone: e.target.value }))}
                 />
+                <div>
+                  <input
+                    type="email"
+                    placeholder="Email para recibir documento firmado"
+                    className="w-full p-3 border rounded-lg"
+                    value={clientData.email}
+                    onChange={(e) => setClientData(prev => ({ ...prev, email: e.target.value }))}
+                    required
+                  />
+                  <p className="text-xs text-blue-600 mt-1">
+                    📧 El documento firmado se enviará automáticamente a este email
+                  </p>
+                </div>
               </div>
 
               {/* Camera Capture */}
@@ -423,7 +438,8 @@ export default function POSInterface() {
                   <div className="mt-2 flex justify-end">
                     <Button 
                       onClick={() => setCurrentStep("signature")}
-                      className="bg-blue-600 hover:bg-blue-700"
+                      disabled={!clientData.email || !clientData.name || !clientData.rut}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
                     >
                       Continuar
                     </Button>
@@ -470,9 +486,19 @@ export default function POSInterface() {
                 </svg>
               </div>
               <h2 className="text-xl font-semibold text-gray-900 mb-2">¡Documento Procesado!</h2>
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-600 mb-4">
                 El documento ha sido enviado para certificación.
               </p>
+              {clientData.email && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6">
+                  <p className="text-sm text-blue-800">
+                    📧 <strong>Email configurado:</strong> {clientData.email}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    El documento firmado se enviará automáticamente a este email cuando el certificador complete la firma FEA
+                  </p>
+                </div>
+              )}
               <Button 
                 onClick={resetProcess}
                 className="bg-blue-600 hover:bg-blue-700"
