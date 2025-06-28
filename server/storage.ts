@@ -193,14 +193,20 @@ export class DatabaseStorage implements IStorage {
     const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
     const [stats] = await db.select({
-      totalDocuments: sql`count(*)::int`,
-      pendingDocuments: sql`count(*) filter (where status = 'pending')::int`,
-      todayCount: sql`count(*) filter (where created_at >= ${today})::int`,
-      monthlyCount: sql`count(*) filter (where created_at >= ${firstDayOfMonth})::int`,
-      rejectedCount: sql`count(*) filter (where status = 'rejected')::int`,
+      totalDocuments: sql<number>`count(*)::int`,
+      pendingDocuments: sql<number>`count(*) filter (where status = 'pending')::int`,
+      todayCount: sql<number>`count(*) filter (where created_at >= ${today})::int`,
+      monthlyCount: sql<number>`count(*) filter (where created_at >= ${firstDayOfMonth})::int`,
+      rejectedCount: sql<number>`count(*) filter (where status = 'rejected')::int`,
     }).from(documents);
 
-    return stats;
+    return {
+      totalDocuments: stats.totalDocuments,
+      pendingDocuments: stats.pendingDocuments,
+      todayCount: stats.todayCount,
+      monthlyCount: stats.monthlyCount,
+      rejectedCount: stats.rejectedCount,
+    };
   }
 
   async getRegionStats(): Promise<{
@@ -208,15 +214,21 @@ export class DatabaseStorage implements IStorage {
     documentCount: number;
     posCount: number;
   }[]> {
-    return await db.select({
+    const results = await db.select({
       region: posTerminals.region,
-      documentCount: sql`count(${documents.id})::int`,
-      posCount: sql`count(distinct ${posTerminals.id})::int`,
+      documentCount: sql<number>`count(${documents.id})::int`,
+      posCount: sql<number>`count(distinct ${posTerminals.id})::int`,
     })
     .from(posTerminals)
     .leftJoin(documents, eq(documents.posTerminalId, posTerminals.id))
     .groupBy(posTerminals.region)
     .orderBy(desc(sql`count(${documents.id})`));
+
+    return results.map(row => ({
+      region: row.region,
+      documentCount: row.documentCount,
+      posCount: row.posCount,
+    }));
   }
 }
 
