@@ -325,9 +325,23 @@ export default function POSInterface() {
       {/* POS Header */}
       <div className="bg-blue-600 text-white p-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold">VecinoXpress POS</h1>
-            <p className="text-blue-200 text-sm">Terminal POS - Minimarket San Pedro</p>
+          <div className="flex items-center space-x-3">
+            {/* Logo VecinoXpress - Solo parte azul */}
+            <div className="relative">
+              <img 
+                src={`${import.meta.env.BASE_URL}attached_assets/file_00000000be7c6230abade75100460c7c_1751098460822.png`}
+                alt="VecinoXpress Logo"
+                className="h-12 w-auto object-contain"
+                style={{ 
+                  clipPath: 'polygon(0% 0%, 52% 0%, 52% 100%, 0% 100%)',
+                  filter: 'brightness(1.2) saturate(1.1)'
+                }}
+              />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold">POS Terminal</h1>
+              <p className="text-blue-200 text-sm">Minimarket San Pedro</p>
+            </div>
           </div>
           <div className="text-right">
             <div className="text-xs text-blue-200">GPS</div>
