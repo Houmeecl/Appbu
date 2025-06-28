@@ -1675,6 +1675,247 @@ Proporciona recomendaciones prácticas y específicas.`;
     }
   });
 
+  // Certificación presencial endpoints
+  app.post('/api/certification/presential', authenticateToken, requireRole(['certificador', 'admin']), async (req: AuthRequest, res: Response) => {
+    try {
+      const { presentialCertificationService } = await import('./services/presentialCertificationService');
+      
+      const certificationRequest = {
+        documentId: req.body.documentId,
+        certificadorId: req.user!.id,
+        clientPresent: req.body.clientPresent,
+        identityVerification: req.body.identityVerification,
+        witnessInfo: req.body.witnessInfo,
+        locationData: req.body.locationData,
+        deviceInfo: {
+          terminalId: req.body.terminalId,
+          imei: req.body.imei,
+          browserInfo: req.get('User-Agent') || 'Unknown'
+        }
+      };
+
+      const result = await presentialCertificationService.processPresentialCertification(certificationRequest);
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          certificationNumber: result.certificationNumber,
+          message: 'Certificación presencial completada exitosamente',
+          data: {
+            documentId: result.documentId,
+            signatureId: result.signatureId,
+            evidenceIds: result.evidenceIds,
+            pdfUrl: result.pdfUrl,
+            qrCode: result.qrCode,
+            archiveReference: result.archiveReference
+          }
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: result.error
+        });
+      }
+    } catch (error: any) {
+      console.error('Error en certificación presencial:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
+  // Verificar certificación por número
+  app.get('/api/certification/verify/:certificationNumber', async (req: Request, res: Response) => {
+    try {
+      const { presentialCertificationService } = await import('./services/presentialCertificationService');
+      const { certificationNumber } = req.params;
+      
+      const verification = await presentialCertificationService.verifyCertification(certificationNumber);
+      
+      res.json(verification);
+    } catch (error: any) {
+      console.error('Error verificando certificación:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
+  // Firmar documento desde POS
+  app.post('/api/pos/sign-document', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const { documentId, signatureData, evidenceData } = req.body;
+      
+      // Crear la firma digital
+      const signature = await storage.createSignature({
+        documentId,
+        type: 'pos_digital',
+        signerName: req.body.signerName,
+        signerRut: req.body.signerRut,
+        signatureData: JSON.stringify(signatureData),
+        timestamp: new Date(),
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent') || 'POS Device'
+      });
+
+      // Crear evidencias capturadas
+      const evidenceIds = [];
+      if (evidenceData) {
+        for (const evidence of evidenceData) {
+          const createdEvidence = await storage.createEvidence({
+            documentId,
+            type: evidence.type,
+            data: evidence.data,
+            timestamp: new Date()
+          });
+          evidenceIds.push(createdEvidence.id);
+        }
+      }
+
+      // Actualizar estado del documento
+      await storage.updateDocumentStatus(documentId, 'signed', new Date());
+
+      // Log de auditoría
+      await storage.createAuditLog({
+        action: 'pos_document_signed',
+        userId: req.user?.id || 0,
+        timestamp: new Date(),
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent') || 'POS Device',
+        details: JSON.stringify({
+          documentId,
+          signatureId: signature.id,
+          evidenceIds,
+          signerRut: req.body.signerRut
+        })
+      });
+
+      res.json({
+        success: true,
+        message: 'Documento firmado exitosamente desde POS',
+        signatureId: signature.id,
+        evidenceIds
+      });
+    } catch (error: any) {
+      console.error('Error firmando documento desde POS:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
+  // Obtener estadísticas de certificación
+  app.get('/api/certification/stats', authenticateToken, requireRole(['admin', 'certificador']), async (req: AuthRequest, res: Response) => {
+    try {
+      const { presentialCertificationService } = await import('./services/presentialCertificationService');
+      const stats = await presentialCertificationService.getCertificationStats();
+      res.json(stats);
+    } catch (error: any) {
+      console.error('Error obteniendo estadísticas:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
+  // eToken SafeNet 5110 endpoints
+  app.get('/api/etoken/status', authenticateToken, requireRole(['certificador', 'admin']), async (req: AuthRequest, res: Response) => {
+    try {
+      const { etokenService } = await import('./services/etokenService');
+      const status = await etokenService.getTokenStatus();
+      res.json(status);
+    } catch (error: any) {
+      console.error('Error obteniendo estado eToken:', error);
+      res.status(500).json({ error: 'Error verificando eToken' });
+    }
+  });
+
+  app.post('/api/etoken/login', authenticateToken, requireRole(['certificador', 'admin']), async (req: AuthRequest, res: Response) => {
+    try {
+      const { etokenService } = await import('./services/etokenService');
+      const { pin, slot = 0 } = req.body;
+      
+      if (!pin) {
+        return res.status(400).json({ error: 'PIN es requerido' });
+      }
+
+      await etokenService.initialize();
+      const success = await etokenService.loginToken(slot, pin);
+      
+      if (success) {
+        res.json({ 
+          success: true, 
+          message: 'Login exitoso en eToken',
+          tokenInfo: await etokenService.getTokenStatus(slot)
+        });
+      } else {
+        res.status(401).json({ error: 'PIN inválido o token no disponible' });
+      }
+    } catch (error: any) {
+      console.error('Error en login eToken:', error);
+      res.status(500).json({ error: `Error de autenticación: ${error.message}` });
+    }
+  });
+
+  app.post('/api/etoken/logout', authenticateToken, requireRole(['certificador', 'admin']), async (req: AuthRequest, res: Response) => {
+    try {
+      const { etokenService } = await import('./services/etokenService');
+      const { slot = 0 } = req.body;
+      
+      await etokenService.logoutToken(slot);
+      res.json({ success: true, message: 'Logout exitoso de eToken' });
+    } catch (error: any) {
+      console.error('Error en logout eToken:', error);
+      res.status(500).json({ error: 'Error cerrando sesión eToken' });
+    }
+  });
+
+  app.get('/api/etoken/certificates', authenticateToken, requireRole(['certificador', 'admin']), async (req: AuthRequest, res: Response) => {
+    try {
+      const { etokenService } = await import('./services/etokenService');
+      const slot = parseInt(req.query.slot as string) || 0;
+      
+      const certificates = await etokenService.getCertificates(slot);
+      res.json(certificates);
+    } catch (error: any) {
+      console.error('Error obteniendo certificados:', error);
+      res.status(500).json({ error: 'Error obteniendo certificados del eToken' });
+    }
+  });
+
+  app.post('/api/etoken/sign', authenticateToken, requireRole(['certificador', 'admin']), async (req: AuthRequest, res: Response) => {
+    try {
+      const { etokenService } = await import('./services/etokenService');
+      const { documentHash, certificateId, pin, algorithm = 'SHA256withRSA', slot = 0 } = req.body;
+      
+      if (!documentHash || !certificateId || !pin) {
+        return res.status(400).json({ 
+          error: 'documentHash, certificateId y pin son requeridos' 
+        });
+      }
+
+      const signatureResult = await etokenService.signDocument(slot, {
+        documentHash,
+        certificateId,
+        pin,
+        algorithm
+      });
+
+      if (signatureResult.success) {
+        res.json({
+          success: true,
+          signature: signatureResult.signature,
+          certificate: signatureResult.certificate,
+          timestamp: signatureResult.timestamp,
+          validationQR: etokenService.generateValidationQR(
+            parseInt(req.body.documentId) || 0, 
+            Date.now()
+          )
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: signatureResult.error
+        });
+      }
+    } catch (error: any) {
+      console.error('Error firmando con eToken:', error);
+      res.status(500).json({ error: 'Error procesando firma con eToken' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

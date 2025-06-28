@@ -1,9 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { 
+  Shield, 
+  Key, 
+  CheckCircle, 
+  AlertTriangle, 
+  Usb,
+  Lock,
+  Unlock,
+  FileSignature,
+  Clock
+} from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 
 type DocumentModalProps = {
   isOpen: boolean;
@@ -26,6 +41,16 @@ export function DocumentModal({
 }: DocumentModalProps) {
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  
+  // eToken state
+  const [etokenStatus, setEtokenStatus] = useState<any>(null);
+  const [etokenPin, setEtokenPin] = useState("");
+  const [isEtokenAuthenticated, setIsEtokenAuthenticated] = useState(false);
+  const [availableCertificates, setAvailableCertificates] = useState<any[]>([]);
+  const [selectedCertificate, setSelectedCertificate] = useState<string>("");
+  const [isCheckingToken, setIsCheckingToken] = useState(false);
+  const [etokenError, setEtokenError] = useState<string>("");
+  const [showEtokenLogin, setShowEtokenLogin] = useState(false);
 
   const handleReject = () => {
     if (rejectReason.trim()) {
