@@ -42,6 +42,7 @@ export const documents = pgTable("documents", {
   clientName: text("client_name").notNull(),
   clientRut: text("client_rut").notNull(),
   clientPhone: text("client_phone"),
+  clientEmail: text("client_email"),
   posTerminalId: integer("pos_terminal_id").references(() => posTerminals.id),
   content: jsonb("content"), // Document content and form data
   status: text("status").notNull().default("pending"), // pending, signed, rejected, completed

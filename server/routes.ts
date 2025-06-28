@@ -15,6 +15,8 @@ import { posRegistrationService } from "./services/posRegistrationService";
 import { expressProcessService } from "./services/expressProcessService";
 import { tuuPaymentService } from "./services/tuuPaymentService";
 import { posAuthService } from "./services/posAuthService";
+import { contractService } from "./services/contractService";
+import { emailService } from "./services/emailService";
 import { authenticateToken, requireRole, generateToken, AuthRequest, rateLimit } from './middleware/auth';
 import { validateRUT, sanitizeInput } from './utils/validation';
 import bcrypt from 'bcryptjs';
@@ -1824,6 +1826,34 @@ Proporciona recomendaciones prácticas y específicas.`;
       const result = await presentialCertificationService.processPresentialCertification(certificationRequest);
       
       if (result.success) {
+        // Obtener información del documento para enviar email
+        const document = await storage.getDocument(result.documentId);
+        const certificador = await storage.getUser(req.user!.id);
+        
+        // Enviar email al cliente si tiene email registrado
+        if (document?.clientEmail && certificador) {
+          try {
+            const documentType = await storage.getDocumentTypes();
+            const docType = documentType.find(dt => dt.id === document.typeId);
+            
+            await emailService.sendSignedDocumentEmail({
+              clientEmail: document.clientEmail,
+              clientName: document.clientName,
+              documentType: docType?.name || 'Documento Legal',
+              documentNumber: document.documentNumber,
+              certificadorName: certificador.name,
+              signedAt: new Date(),
+              pdfUrl: result.pdfUrl ? `${req.protocol}://${req.get('host')}${result.pdfUrl}` : undefined,
+              validationUrl: result.qrCode ? `${req.protocol}://${req.get('host')}/validate/${result.qrCode}` : undefined
+            });
+            
+            console.log(`📧 Email enviado exitosamente a ${document.clientEmail}`);
+          } catch (emailError) {
+            console.error('❌ Error enviando email al cliente:', emailError);
+            // No falla la certificación si el email falla
+          }
+        }
+
         res.json({
           success: true,
           certificationNumber: result.certificationNumber,
@@ -1834,7 +1864,8 @@ Proporciona recomendaciones prácticas y específicas.`;
             evidenceIds: result.evidenceIds,
             pdfUrl: result.pdfUrl,
             qrCode: result.qrCode,
-            archiveReference: result.archiveReference
+            archiveReference: result.archiveReference,
+            emailSent: !!document?.clientEmail
           }
         });
       } else {
@@ -2105,6 +2136,100 @@ Proporciona recomendaciones prácticas y específicas.`;
     } catch (error) {
       console.error('Error fetching recent documents:', error);
       res.status(500).json({ message: 'Error fetching recent documents' });
+    }
+  });
+
+  // Generate Service Contract for POS Registration
+  app.post('/api/admin/generate-contract', authenticateToken, requireRole(['admin']), async (req: AuthRequest, res: Response) => {
+    try {
+      const {
+        terminalId,
+        operatorName,
+        operatorRut,
+        businessName,
+        businessAddress,
+        imei,
+        region,
+        contactPhone,
+        contactEmail,
+        coordinates
+      } = req.body;
+
+      const contractData = {
+        terminalId,
+        operatorName,
+        operatorRut,
+        businessName,
+        businessAddress,
+        imei,
+        region,
+        commissionRate: 12, // 12% commission rate
+        contractDate: new Date(),
+        startDate: new Date(),
+        coordinates,
+        contactPhone,
+        contactEmail
+      };
+
+      // Generate PDF contract
+      const pdfBuffer = await contractService.generateServiceContract(contractData);
+      
+      // Generate contract summary
+      const contractSummary = await contractService.generateContractSummary(contractData);
+
+      // Set PDF response headers
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Contrato_${terminalId}_${Date.now()}.pdf"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+
+      // Send PDF and summary in response
+      res.json({
+        success: true,
+        contractSummary,
+        pdfUrl: `/api/admin/download-contract/${contractSummary.contractNumber}`,
+        message: 'Contrato generado exitosamente'
+      });
+
+    } catch (error) {
+      console.error('Error generating contract:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Error generando contrato de servicios',
+        details: error.message 
+      });
+    }
+  });
+
+  // Download Contract PDF
+  app.get('/api/admin/download-contract/:contractNumber', authenticateToken, requireRole(['admin']), async (req: AuthRequest, res: Response) => {
+    try {
+      const { contractNumber } = req.params;
+      
+      // In production, retrieve contract from database
+      // For demo, generate a sample contract
+      const sampleContractData = {
+        terminalId: contractNumber.split('-')[1] || 'POS001',
+        operatorName: 'Operador Demo',
+        operatorRut: '12.345.678-9',
+        businessName: 'Negocio Demo',
+        businessAddress: 'Dirección Demo 123',
+        imei: '123456789012345',
+        region: 'Región Metropolitana',
+        commissionRate: 12,
+        contractDate: new Date(),
+        startDate: new Date(),
+        coordinates: '-33.4489,-70.6693'
+      };
+
+      const pdfBuffer = await contractService.generateServiceContract(sampleContractData);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Contrato_${contractNumber}.pdf"`);
+      res.send(pdfBuffer);
+
+    } catch (error) {
+      console.error('Error downloading contract:', error);
+      res.status(500).json({ error: 'Error descargando contrato' });
     }
   });
 
