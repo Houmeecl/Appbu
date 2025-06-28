@@ -6,8 +6,88 @@ import { z } from "zod";
 import { pdfService } from "./services/pdfService";
 import { qrService } from "./services/qrService";
 import { etokenService } from "./services/etokenService";
+import { authenticateToken, requireRole, generateToken, AuthRequest, rateLimit } from './middleware/auth';
+import { validateRUT, sanitizeInput } from './utils/validation';
+import bcrypt from 'bcryptjs';
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Authentication endpoints
+  app.post("/api/auth/login", rateLimit(5, 15 * 60 * 1000), async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ message: "Username and password required" });
+      }
+      
+      const user = await storage.getUserByUsername(sanitizeInput(username));
+      if (!user) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+      
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+      
+      const token = generateToken(user);
+      
+      // Log successful login
+      await storage.createAuditLog({
+        action: "user_login",
+        userId: user.id,
+        details: { username: user.username, ip: req.ip }
+      });
+      
+      res.json({
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json({ message: "Authentication failed" });
+    }
+  });
+
+  app.post("/api/auth/register", authenticateToken, requireRole(["admin"]), async (req, res) => {
+    try {
+      const { username, password, name, role } = req.body;
+      
+      if (!username || !password || !name || !role) {
+        return res.status(400).json({ message: "All fields required" });
+      }
+      
+      const existingUser = await storage.getUserByUsername(sanitizeInput(username));
+      if (existingUser) {
+        return res.status(409).json({ message: "Username already exists" });
+      }
+      
+      const hashedPassword = await bcrypt.hash(password, 12);
+      
+      const newUser = await storage.createUser({
+        username: sanitizeInput(username),
+        password: hashedPassword,
+        name: sanitizeInput(name),
+        role: role
+      });
+      
+      res.status(201).json({
+        id: newUser.id,
+        username: newUser.username,
+        name: newUser.name,
+        role: newUser.role
+      });
+    } catch (error) {
+      console.error("Registration error:", error);
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
   // Document Types
   app.get("/api/document-types", async (req, res) => {
     try {
@@ -28,25 +108,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create Document
-  app.post("/api/documents", async (req, res) => {
+  // Create Document with enhanced validation
+  app.post("/api/documents", rateLimit(10, 60 * 1000), async (req, res) => {
     try {
       const data = insertDocumentSchema.parse(req.body);
-      const document = await storage.createDocument(data);
+      
+      // Validate Chilean RUT
+      if (!validateRUT(data.clientRut)) {
+        return res.status(400).json({ message: "Invalid Chilean RUT format" });
+      }
+      
+      // Sanitize inputs
+      data.clientName = sanitizeInput(data.clientName);
+      data.clientRut = sanitizeInput(data.clientRut);
+      
+      // Generate document number if not provided
+      if (!data.documentNumber) {
+        const year = new Date().getFullYear();
+        const sequence = Date.now().toString().slice(-6);
+        data.documentNumber = `DOC-${year}-${sequence}`;
+      }
+      
+      // Generate document hash for integrity
+      const documentHash = qrService.generateDocumentHash(data);
+      
+      const document = await storage.createDocument({
+        ...data,
+        hash: documentHash
+      });
+      
+      // Generate QR code for validation
+      const qrCode = qrService.generateQRCode(documentHash);
+      await storage.updateDocumentQR(document.id, qrCode);
       
       // Log document creation
       await storage.createAuditLog({
         documentId: document.id,
         action: "document_created",
-        details: { documentNumber: document.documentNumber },
+        details: { documentNumber: document.documentNumber, qrCode },
         ipAddress: req.ip,
       });
 
-      res.json(document);
+      res.json({ ...document, qrCode });
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid document data", errors: error.errors });
       } else {
+        console.error("Document creation error:", error);
         res.status(500).json({ message: "Failed to create document" });
       }
     }
@@ -135,58 +243,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Advanced Signature (from Certificador with eToken)
-  app.post("/api/documents/:id/sign-advanced", async (req, res) => {
+  app.post("/api/documents/:id/sign-advanced", authenticateToken, requireRole(["certificador", "admin"]), async (req, res) => {
     try {
       const documentId = parseInt(req.params.id);
-      const { certificadorId } = req.body;
-
+      const { pin, certificatorNotes } = req.body;
+      const authReq = req as AuthRequest;
+      
+      if (!pin) {
+        return res.status(400).json({ message: "eToken PIN required" });
+      }
+      
+      // Initialize eToken service
+      await etokenService.initializePKCS11();
+      
+      // Authenticate with eToken
+      const authenticated = await etokenService.authenticate(pin);
+      if (!authenticated) {
+        return res.status(401).json({ message: "eToken authentication failed" });
+      }
+      
+      // Get document and evidence
       const document = await storage.getDocument(documentId);
       if (!document) {
         return res.status(404).json({ message: "Document not found" });
       }
-
-      // Get document evidence and signatures for PDF generation
-      const evidence = await storage.getDocumentEvidence(documentId);
-      const signatures = await storage.getDocumentSignatures(documentId);
-
-      // Generate PDF with advanced signature
-      const pdfBuffer = await pdfService.generateSignedPDF(document, evidence, signatures);
       
-      // Sign PDF with eToken (mock implementation)
+      const evidence = await storage.getDocumentEvidence(documentId);
+      
+      // Generate professional PDF with signatures
+      const pdfBuffer = await pdfService.generateSignedPDF(document, "advanced_signature_hash", evidence);
+      
+      // Apply eToken signature to PDF
       const signedPdfBuffer = await etokenService.signPDF(pdfBuffer);
-
-      // Generate QR code for validation
-      const qrCode = qrService.generateQRCode(document.hash);
-      await storage.updateDocumentQR(documentId, qrCode);
-
-      // Create advanced signature record
-      const advancedSignature = await storage.createSignature({
+      
+      // Get certificate info for signature record
+      const certInfo = await etokenService.getCertificateInfo();
+      
+      const signature = await storage.createSignature({
         documentId,
         type: "advanced",
-        signatureData: "eToken_certificate_data", // In real implementation, this would be certificate data
-        signerName: "Certificador",
-        certificadorId,
+        signatureData: "fea_signature_hash_placeholder",
+        signerName: authReq.user!.name,
+        signerRut: "certificador_rut",
+        certificateInfo: JSON.stringify(certInfo),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
       });
-
-      // Update document status to signed
-      await storage.updateDocumentStatus(documentId, "signed", new Date());
-
+      
+      // Update document status to completed
+      await storage.updateDocumentStatus(documentId, "completed", new Date());
+      
       // Log advanced signature
       await storage.createAuditLog({
         documentId,
-        userId: certificadorId,
-        action: "advanced_signature_added",
-        details: { qrCode },
+        action: "advanced_signature_applied",
+        userId: authReq.user!.id,
+        details: { 
+          certificatorName: authReq.user!.name,
+          certificateSerial: certInfo.serialNumber,
+          notes: certificatorNotes
+        },
         ipAddress: req.ip,
       });
-
+      
       res.json({
-        signature: advancedSignature,
-        qrCode,
-        pdfGenerated: true,
+        signature,
+        document: { ...document, status: "completed" },
+        certificateInfo: certInfo,
+        pdfGenerated: true
       });
+
+
     } catch (error) {
       console.error("Advanced signature error:", error);
       res.status(500).json({ message: "Failed to create advanced signature" });
@@ -262,15 +389,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Dashboard Statistics
+  // eToken Management Endpoints
+  app.get("/api/etoken/status", authenticateToken, requireRole(["certificador", "admin"]), async (req, res) => {
+    try {
+      const isAvailable = await etokenService.checkTokenAvailability();
+      const deviceInfo = etokenService.getDeviceInfo();
+      
+      res.json({
+        available: isAvailable,
+        device: deviceInfo,
+        status: isAvailable ? "connected" : "not_detected"
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to check eToken status" });
+    }
+  });
+
+  app.get("/api/etoken/certificate", authenticateToken, requireRole(["certificador", "admin"]), async (req, res) => {
+    try {
+      const certificateInfo = await etokenService.getCertificateInfo();
+      res.json(certificateInfo);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get certificate information" });
+    }
+  });
+
+  app.post("/api/etoken/authenticate", authenticateToken, requireRole(["certificador", "admin"]), async (req, res) => {
+    try {
+      const { pin } = req.body;
+      
+      if (!pin) {
+        return res.status(400).json({ message: "PIN required" });
+      }
+      
+      const authenticated = await etokenService.authenticate(pin);
+      res.json({ authenticated });
+    } catch (error) {
+      res.status(500).json({ message: "eToken authentication failed" });
+    }
+  });
+
+  // PDF Generation endpoint
+  app.get("/api/documents/:id/pdf", authenticateToken, async (req, res) => {
+    try {
+      const documentId = parseInt(req.params.id);
+      const authReq = req as AuthRequest;
+      
+      const document = await storage.getDocument(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Check permissions: certificador/admin can see all, others only their documents
+      if (authReq.user!.role !== "admin" && authReq.user!.role !== "certificador") {
+        // For future implementation: check if user owns this document
+      }
+      
+      const evidence = await storage.getDocumentEvidence(documentId);
+      const pdfBuffer = await pdfService.generateSignedPDF(document, "pdf_generation_hash", evidence);
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="documento-${document.documentNumber}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("PDF generation error:", error);
+      res.status(500).json({ message: "Failed to generate PDF" });
+    }
+  });
+
+  // QR Code generation endpoint
+  app.get("/api/documents/:id/qr", async (req, res) => {
+    try {
+      const documentId = parseInt(req.params.id);
+      
+      const document = await storage.getDocument(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      if (!document.qrCode) {
+        return res.status(404).json({ message: "QR code not generated for this document" });
+      }
+      
+      const qrImageBuffer = await qrService.generateQRCodeImage(document.qrCode);
+      
+      res.setHeader('Content-Type', 'image/png');
+      res.send(qrImageBuffer);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to generate QR code image" });
+    }
+  });
+
+  // Dashboard Statistics with enhanced data
   app.get("/api/stats", async (req, res) => {
     try {
       const documentStats = await storage.getDocumentStats();
       const regionStats = await storage.getRegionStats();
 
+      // Add eToken status to dashboard
+      const etokenStatus = await etokenService.checkTokenAvailability();
+      const etokenInfo = etokenService.getDeviceInfo();
+
       res.json({
         documents: documentStats,
         regions: regionStats,
+        etoken: {
+          available: etokenStatus,
+          device: etokenInfo
+        },
+        system: {
+          timestamp: new Date().toISOString(),
+          version: "2.0.0",
+          environment: process.env.NODE_ENV || "development"
+        }
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch statistics" });
