@@ -9,8 +9,9 @@ import { useGeolocation } from "@/hooks/use-geolocation";
 import { CameraCapture } from "@/components/camera-capture";
 import { SignatureCanvas } from "@/components/signature-canvas";
 import { AiDocumentSearch } from "@/components/ai-document-search";
+import IdentityVerification from "@/components/identity-verification";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, FileText, Plus } from "lucide-react";
+import { Bot, FileText, Plus, Shield } from "lucide-react";
 
 type DocumentType = {
   id: number;
@@ -19,7 +20,7 @@ type DocumentType = {
   price: string;
 };
 
-type ProcessStep = "selection" | "verification" | "signature" | "completed";
+type ProcessStep = "selection" | "identity" | "verification" | "signature" | "completed";
 
 export default function POSInterface() {
   const [currentStep, setCurrentStep] = useState<ProcessStep>("selection");
