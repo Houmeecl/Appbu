@@ -68,6 +68,22 @@ interface GeneratedDocument {
   createdAt: string;
 }
 
+interface CustomTemplate {
+  id: string;
+  name: string;
+  description: string;
+  originalTemplate: string;
+  posAdaptedTemplate: string;
+  variables: string[];
+  category: string;
+  createdBy: string;
+  status: 'pending_ai' | 'ai_adapted' | 'pending_pricing' | 'priced' | 'active';
+  price?: number;
+  createdAt: string;
+  adaptedAt?: string;
+  pricedAt?: string;
+}
+
 // Simulated dashboard users
 const DASHBOARD_USERS: DashboardUser[] = [
   {
@@ -160,6 +176,15 @@ export default function Dashboard() {
   });
   const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [customTemplates, setCustomTemplates] = useState<CustomTemplate[]>([]);
+  const [newTemplate, setNewTemplate] = useState({
+    name: "",
+    description: "",
+    template: "",
+    category: "",
+    variables: ""
+  });
+  const [isAddingTemplate, setIsAddingTemplate] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -311,6 +336,178 @@ export default function Dashboard() {
       return "Excelente para formalizar pagos y crear comprobantes. Garantiza respaldo legal en transacciones comerciales.";
     }
     return "Plantilla versátil que puede adaptarse a diversos propósitos legales.";
+  };
+
+  // Add Custom Template (Supervisor only)
+  const addCustomTemplate = async () => {
+    if (!newTemplate.name || !newTemplate.template) {
+      toast({
+        title: "Campos requeridos",
+        description: "Nombre y template son obligatorios",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsAddingTemplate(true);
+    
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      const template: CustomTemplate = {
+        id: `CUSTOM-${Date.now()}`,
+        name: newTemplate.name,
+        description: newTemplate.description,
+        originalTemplate: newTemplate.template,
+        posAdaptedTemplate: "", // Will be filled by AI
+        variables: newTemplate.variables.split(',').map(v => v.trim()).filter(v => v),
+        category: newTemplate.category || "Personalizado",
+        createdBy: currentUser?.name || "Usuario",
+        status: 'pending_ai',
+        createdAt: new Date().toISOString()
+      };
+
+      setCustomTemplates(prev => [template, ...prev]);
+      
+      toast({
+        title: "Template agregado",
+        description: "El template será procesado por IA automáticamente",
+      });
+
+      // Reset form
+      setNewTemplate({
+        name: "",
+        description: "",
+        template: "",
+        category: "",
+        variables: ""
+      });
+
+      // Auto-trigger AI adaptation
+      setTimeout(() => adaptTemplateWithAI(template.id), 2000);
+
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo agregar el template",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingTemplate(false);
+    }
+  };
+
+  // AI Template Adaptation (Automatic)
+  const adaptTemplateWithAI = async (templateId: string) => {
+    setCustomTemplates(prev => prev.map(t => 
+      t.id === templateId ? { ...t, status: 'ai_adapted' as const } : t
+    ));
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      setCustomTemplates(prev => prev.map(t => {
+        if (t.id === templateId) {
+          // AI adapts template for POS interface
+          const posAdapted = `${t.originalTemplate}
+
+=== ADAPTACIÓN POS ===
+Versión optimizada para terminal:
+- Campos simplificados para pantalla táctil
+- Validación RUT automática
+- GPS y timestamp integrados
+- Interfaz amigable para operador
+
+Variables POS: ${t.variables.join(', ')}, fecha, lugar, gps_coords, operador_pos`;
+
+          return {
+            ...t,
+            posAdaptedTemplate: posAdapted,
+            adaptedAt: new Date().toISOString(),
+            status: 'pending_pricing' as const
+          };
+        }
+        return t;
+      }));
+
+      toast({
+        title: "IA completó adaptación",
+        description: "Template optimizado para terminales POS",
+      });
+
+    } catch (error) {
+      setCustomTemplates(prev => prev.map(t => 
+        t.id === templateId ? { ...t, status: 'pending_ai' as const } : t
+      ));
+    }
+  };
+
+  // Set Price (Admin only)
+  const setPriceTemplate = async (templateId: string, price: number) => {
+    if (currentUser?.role !== 'admin') {
+      toast({
+        title: "Sin permisos",
+        description: "Solo administradores pueden valorizar templates",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCustomTemplates(prev => prev.map(t => {
+      if (t.id === templateId) {
+        return {
+          ...t,
+          price,
+          pricedAt: new Date().toISOString(),
+          status: 'priced' as const
+        };
+      }
+      return t;
+    }));
+
+    toast({
+      title: "Precio asignado",
+      description: `Template valorizado en $${price.toLocaleString()}`,
+    });
+  };
+
+  // Activate Template (Admin only)
+  const activateTemplate = async (templateId: string) => {
+    if (currentUser?.role !== 'admin') {
+      toast({
+        title: "Sin permisos",
+        description: "Solo administradores pueden activar templates",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCustomTemplates(prev => prev.map(t => 
+      t.id === templateId ? { ...t, status: 'active' as const } : t
+    ));
+
+    toast({
+      title: "Template activado",
+      description: "Ahora disponible en terminales POS",
+    });
+  };
+
+  const getStatusBadgeTemplate = (status: CustomTemplate['status']) => {
+    const statusConfig = {
+      'pending_ai': { label: 'Esperando IA', variant: 'secondary' as const, color: 'bg-yellow-100 text-yellow-800' },
+      'ai_adapted': { label: 'IA Completada', variant: 'default' as const, color: 'bg-blue-100 text-blue-800' },
+      'pending_pricing': { label: 'Pendiente Precio', variant: 'default' as const, color: 'bg-orange-100 text-orange-800' },
+      'priced': { label: 'Valorizado', variant: 'default' as const, color: 'bg-purple-100 text-purple-800' },
+      'active': { label: 'Activo', variant: 'default' as const, color: 'bg-green-100 text-green-800' }
+    };
+    
+    const config = statusConfig[status];
+    
+    return (
+      <Badge variant={config.variant} className={config.color}>
+        {config.label}
+      </Badge>
+    );
   };
 
   const generateSearchSummary = (templates: any[], query: string, purpose: string): string => {
