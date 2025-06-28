@@ -286,6 +286,27 @@ VecinoXpress is a comprehensive electronic signature system for legal documents 
   - Logs de intentos fallidos y actividad sospechosa
   - Cumplimiento con estándares TUU Chile
 
+### Interfaz Certificador Optimizada para Tablet - Junio 28, 2025
+- ✅ **Panel Certificador Rediseñado para Tablet Android Horizontal:**
+  - Layout de dos columnas: listado izquierdo (384px) + contenido principal
+  - Header compacto de 64px con estadísticas integradas
+  - Sidebar izquierdo con scroll para lista de documentos pendientes
+  - Vista previa del documento seleccionado en panel principal
+  - Interfaz táctil optimizada con elementos de mayor tamaño
+  - Navegación sin salir de la vista principal
+- ✅ **Componentes UI Mejorados:**
+  - ScrollArea para listas largas de documentos
+  - Cards clicables con estados visuales (seleccionado/hover)
+  - Separadores visuales para mejor organización
+  - Iconos Lucide React para consistencia visual
+  - Estados de carga y vacío específicos para tablet
+- ✅ **Funcionalidades Tablet-Específicas:**
+  - Selección de documento desde listado lateral
+  - Vista detallada sin modales para información básica
+  - Modal completo solo para revisión y firma FEA
+  - Indicadores visuales de estado eToken y conexión
+  - Layout responsive que se adapta a orientación horizontal
+
 ### Estado del Sistema
 - ✅ **Servidor corriendo exitosamente** en puerto 5000
 - ✅ **API endpoints respondiendo correctamente** (45+ endpoints activos)
@@ -293,6 +314,7 @@ VecinoXpress is a comprehensive electronic signature system for legal documents 
 - ✅ **Navegación entre interfaces funcional**
 - ✅ **Sistema POS con autenticación ID/clave implementado**
 - ✅ **Integración TUU Payment lista para producción**
+- ✅ **Panel Certificador optimizado para tablet Android horizontal**
 - ⚠️ **Acceso a cámara requiere HTTPS** en producción (normal en desarrollo)
 - ✅ **TypeScript warnings menores** que no afectan funcionalidad
 

@@ -2,10 +2,25 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { DocumentModal } from "@/components/document-modal";
 import { useToast } from "@/hooks/use-toast";
+import { 
+  Clock, 
+  CheckCircle, 
+  FileSignature, 
+  AlertTriangle, 
+  Eye, 
+  MapPin, 
+  User, 
+  FileText,
+  Smartphone,
+  Usb,
+  Settings
+} from "lucide-react";
 
 type PendingDocument = {
   id: number;
@@ -106,201 +121,259 @@ export default function CertificadorPanel() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-red-600">NotaryPro</h1>
-              <span className="ml-3 text-sm text-gray-500">Panel Certificador</span>
+    <div className="h-screen bg-gray-100 flex flex-col overflow-hidden">
+      {/* Header optimizado para tablet horizontal */}
+      <header className="bg-white shadow-sm h-16 flex-shrink-0">
+        <div className="flex justify-between items-center h-full px-6">
+          <div className="flex items-center">
+            <h1 className="text-xl font-bold text-red-600">NotaryPro</h1>
+            <Separator orientation="vertical" className="mx-4 h-6" />
+            <span className="text-sm text-gray-600">Panel Certificador</span>
+          </div>
+          
+          {/* Stats compactas en header */}
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-2">
+              <Clock className="h-4 w-4 text-yellow-600" />
+              <span className="text-sm font-medium">{stats.pending} Pendientes</span>
             </div>
+            <div className="flex items-center space-x-2">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <span className="text-sm font-medium">{stats.today} Hoy</span>
+            </div>
+            <Separator orientation="vertical" className="h-6" />
             <div className="flex items-center space-x-4">
-              <div className="flex items-center text-sm text-gray-600">
-                <i className="fas fa-usb text-green-500 mr-2"></i>
-                eToken Conectado
+              <div className="flex items-center space-x-2 text-sm text-green-600">
+                <Usb className="h-4 w-4" />
+                <span>eToken OK</span>
               </div>
-              <div className="flex items-center text-sm text-gray-600">
-                <i className="fas fa-user-circle mr-2"></i>
-                <span>Juan Pérez - Certificador</span>
+              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <User className="h-4 w-4" />
+                <span>Juan Pérez</span>
               </div>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {/* Stats Overview */}
-        <div className="px-4 py-6 sm:px-0">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-3 bg-yellow-100 rounded-lg">
-                    <i className="fas fa-clock text-yellow-600"></i>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Pendientes</p>
-                    <p className="text-2xl font-semibold text-gray-900">{stats.pending}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-3 bg-green-100 rounded-lg">
-                    <i className="fas fa-check-circle text-green-600"></i>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Firmados Hoy</p>
-                    <p className="text-2xl font-semibold text-gray-900">{stats.today}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-3 bg-blue-100 rounded-lg">
-                    <i className="fas fa-file-signature text-blue-600"></i>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Mensual</p>
-                    <p className="text-2xl font-semibold text-gray-900">{stats.monthly}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-3 bg-red-100 rounded-lg">
-                    <i className="fas fa-exclamation-triangle text-red-600"></i>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Rechazados</p>
-                    <p className="text-2xl font-semibold text-gray-900">{stats.rejected}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      {/* Layout principal: sidebar izquierdo + contenido principal */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar izquierdo - Listado de documentos */}
+        <div className="w-96 bg-white border-r border-gray-200 flex flex-col">
+          <div className="p-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+              <FileText className="h-5 w-5 mr-2 text-blue-600" />
+              Documentos Pendientes
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              {pendingDocuments.length} documentos esperando firma FEA
+            </p>
           </div>
-
-          {/* Documents Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Documentos Pendientes de Firma</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="animate-pulse bg-gray-200 h-16 rounded"></div>
-                  ))}
-                </div>
-              ) : pendingDocuments.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <i className="fas fa-inbox text-4xl mb-4"></i>
-                  <p>No hay documentos pendientes</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Documento
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Cliente
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Ubicación
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Hora
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Estado
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Acción
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {pendingDocuments.map((doc: PendingDocument) => (
-                        <tr key={doc.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <i className="fas fa-file-contract text-blue-600 mr-3"></i>
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">
-                                  Declaración Jurada Simple
-                                </div>
-                                <div className="text-sm text-gray-500 font-mono">
-                                  {doc.documentNumber}
-                                </div>
-                              </div>
+          
+          <ScrollArea className="flex-1">
+            {isLoading ? (
+              <div className="p-4 space-y-3">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="bg-gray-200 h-20 rounded-lg"></div>
+                  </div>
+                ))}
+              </div>
+            ) : pendingDocuments.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p className="font-medium">No hay documentos pendientes</p>
+                <p className="text-sm mt-1">Los nuevos documentos aparecerán aquí</p>
+              </div>
+            ) : (
+              <div className="p-2">
+                {pendingDocuments.map((doc: PendingDocument) => (
+                  <Card 
+                    key={doc.id} 
+                    className={`mb-2 cursor-pointer transition-all hover:shadow-md ${
+                      selectedDocument?.id === doc.id ? 'ring-2 ring-red-500 bg-red-50' : ''
+                    }`}
+                    onClick={() => setSelectedDocument(doc)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center mb-2">
+                            <FileSignature className="h-4 w-4 text-blue-600 mr-2" />
+                            <h3 className="text-sm font-medium text-gray-900 truncate">
+                              Declaración Jurada Simple
+                            </h3>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <div className="flex items-center text-xs text-gray-600">
+                              <User className="h-3 w-3 mr-1" />
+                              <span className="truncate">{doc.clientName}</span>
                             </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{doc.clientName}</div>
-                            <div className="text-sm text-gray-500">{doc.clientRut}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              {doc.terminal?.name || "Terminal POS"}
+                            <div className="flex items-center text-xs text-gray-500">
+                              <span className="font-mono">{doc.clientRut}</span>
                             </div>
-                            <div className="text-sm text-gray-500">
-                              {doc.terminal?.address || "Ubicación"}
+                            <div className="flex items-center text-xs text-gray-500">
+                              <MapPin className="h-3 w-3 mr-1" />
+                              <span className="truncate">{doc.terminal?.name || "Terminal POS"}</span>
                             </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(doc.createdAt).toLocaleTimeString('es-CL', {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })} hrs
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
-                              <i className="fas fa-clock mr-1"></i>
+                          </div>
+                          
+                          <div className="flex items-center justify-between mt-3">
+                            <Badge variant="outline" className="bg-yellow-100 text-yellow-800 text-xs">
+                              <Clock className="h-3 w-3 mr-1" />
                               Pendiente FEA
                             </Badge>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <Button
-                              onClick={() => handleReviewDocument(doc)}
-                              className="bg-red-600 hover:bg-red-700 text-white"
-                            >
-                              <i className="fas fa-eye mr-2"></i>
-                              Revisar
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                            <span className="text-xs text-gray-500">
+                              {new Date(doc.createdAt).toLocaleTimeString('es-CL', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
         </div>
-      </main>
 
-      {/* Document Review Modal */}
+        {/* Contenido principal - Detalles del documento seleccionado */}
+        <div className="flex-1 flex flex-col bg-gray-50">
+          {selectedDocument ? (
+            <>
+              {/* Header del documento */}
+              <div className="bg-white border-b border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-2xl font-bold text-gray-900">
+                      Declaración Jurada Simple
+                    </h1>
+                    <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
+                      <span className="font-mono">{selectedDocument.documentNumber}</span>
+                      <Separator orientation="vertical" className="h-4" />
+                      <span>{selectedDocument.clientName}</span>
+                      <Separator orientation="vertical" className="h-4" />
+                      <span>{selectedDocument.clientRut}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex space-x-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedDocument(null)}
+                      className="text-gray-600"
+                    >
+                      Cerrar Vista
+                    </Button>
+                    <Button
+                      onClick={() => setIsModalOpen(true)}
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      Revisar y Firmar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Vista previa del documento */}
+              <div className="flex-1 p-6 overflow-auto">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+                  {/* Información del documento */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <FileText className="h-5 w-5 mr-2" />
+                        Información del Documento
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Cliente</label>
+                        <p className="text-sm text-gray-900 mt-1">{selectedDocument.clientName}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">RUT</label>
+                        <p className="text-sm text-gray-900 mt-1 font-mono">{selectedDocument.clientRut}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Fecha de Creación</label>
+                        <p className="text-sm text-gray-900 mt-1">
+                          {new Date(selectedDocument.createdAt).toLocaleString('es-CL')}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Terminal de Origen</label>
+                        <p className="text-sm text-gray-900 mt-1 flex items-center">
+                          <Smartphone className="h-4 w-4 mr-2" />
+                          {selectedDocument.terminal?.name || "Terminal POS"}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Estado</label>
+                        <Badge variant="outline" className="bg-yellow-100 text-yellow-800 mt-1">
+                          <Clock className="h-3 w-3 mr-1" />
+                          Pendiente de Firma FEA
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Evidencias capturadas */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <Settings className="h-5 w-5 mr-2" />
+                        Evidencias Biométricas
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="text-center p-8 bg-gray-50 rounded-lg">
+                          <p className="text-sm text-gray-600">
+                            Vista previa de evidencias disponible en modal de revisión
+                          </p>
+                          <Button
+                            onClick={() => setIsModalOpen(true)}
+                            variant="outline"
+                            className="mt-4"
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            Ver Evidencias Completas
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </>
+          ) : (
+            // Estado vacío - ningún documento seleccionado
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Selecciona un documento
+                </h3>
+                <p className="text-gray-500 max-w-sm">
+                  Elige un documento de la lista izquierda para revisar sus detalles y proceder con la firma FEA.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal de revisión completa */}
       {selectedDocument && (
         <DocumentModal
           isOpen={isModalOpen}
-          onClose={() => {
-            setIsModalOpen(false);
-            setSelectedDocument(null);
-          }}
+          onClose={() => setIsModalOpen(false)}
           document={selectedDocument}
           onSign={handleSignDocument}
           onReject={handleRejectDocument}
