@@ -2,12 +2,15 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import { CameraCapture } from "@/components/camera-capture";
 import { SignatureCanvas } from "@/components/signature-canvas";
+import { AiDocumentSearch } from "@/components/ai-document-search";
 import { useToast } from "@/hooks/use-toast";
+import { Bot, FileText, Plus } from "lucide-react";
 
 type DocumentType = {
   id: number;
@@ -48,14 +51,14 @@ export default function POSInterface() {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       toast({
         title: "Documento creado",
-        description: "El documento ha sido enviado para firma avanzada",
+        description: "El documento ha sido procesado exitosamente",
       });
       setCurrentStep("completed");
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "No se pudo crear el documento",
+        description: "Error al procesar el documento",
         variant: "destructive",
       });
     },
@@ -68,59 +71,60 @@ export default function POSInterface() {
 
   const handlePhotoCapture = (photoData: string) => {
     setCapturedPhoto(photoData);
+  };
+
+  const handleSignature = (signatureData: string) => {
+    setSignature(signatureData);
     setCurrentStep("signature");
   };
 
-  const handleSignatureComplete = (signatureData: string) => {
-    setSignature(signatureData);
-    
-    // Create document with all collected data
-    if (selectedDocument && location && capturedPhoto) {
-      createDocumentMutation.mutate({
-        typeId: selectedDocument.id,
-        clientName: clientData.name || "Cliente POS",
-        clientRut: clientData.rut || "12345678-9",
-        clientPhone: clientData.phone,
-        posTerminalId: 1, // Mock terminal ID
-        content: {
-          documentType: selectedDocument.name,
-          formData: clientData,
-        },
-        status: "pending",
-      });
+  const handleComplete = async () => {
+    if (!selectedDocument || !capturedPhoto || !signature) return;
 
-      // Add evidence
-      setTimeout(async () => {
+    const documentData = {
+      typeId: selectedDocument.id,
+      clientName: clientData.name || "Cliente POS",
+      clientRut: clientData.rut || "12345678-9",
+      clientPhone: clientData.phone,
+      posTerminalId: 1,
+      status: "pending",
+      content: {
+        selectedDocument,
+        clientData,
+        location,
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    createDocumentMutation.mutate(documentData);
+
+    // Add evidence and signature after delay
+    setTimeout(async () => {
+      if (capturedPhoto && signature) {
         try {
-          // Add GPS evidence
-          await apiRequest("POST", `/api/documents/1/evidence`, {
-            type: "gps",
-            data: { latitude: location.latitude, longitude: location.longitude },
-          });
-
           // Add photo evidence
           await apiRequest("POST", `/api/documents/1/evidence`, {
-            type: "photo", 
-            data: { photoData: capturedPhoto },
+            type: "photo",
+            data: { imageData: capturedPhoto },
           });
 
           // Add signature evidence
           await apiRequest("POST", `/api/documents/1/evidence`, {
             type: "signature",
-            data: { signatureData },
+            data: { signatureData: signature },
           });
 
           // Add simple signature
           await apiRequest("POST", `/api/documents/1/sign-simple`, {
-            signatureData,
+            signatureData: signature,
             signerName: clientData.name || "Cliente POS",
             signerRut: clientData.rut || "12345678-9",
           });
         } catch (error) {
           console.error("Error adding evidence:", error);
         }
-      }, 1000);
-    }
+      }
+    }, 1000);
   };
 
   const resetProcess = () => {
@@ -131,31 +135,10 @@ export default function POSInterface() {
     setClientData({ name: "", rut: "", phone: "" });
   };
 
-  return (
-    <div className="max-w-md mx-auto bg-white min-h-screen">
-      {/* POS Header */}
-      <div className="bg-blue-600 text-white p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold">VecinoXpress</h1>
-            <p className="text-blue-200 text-sm">Terminal POS - Minimarket San Pedro</p>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-blue-200">GPS</div>
-            {location && (
-              <div className="text-sm font-mono">
-                {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
-              </div>
-            )}
-            {locationError && (
-              <div className="text-sm text-red-200">Sin GPS</div>
-            )}
-          </div>
-        </div>
-      </div>
-
+  const DocumentCreationContent = () => (
+    <>
       {/* Step Progress */}
-      <div className="p-4 bg-gray-50 border-b">
+      <div className="p-4 bg-gray-50 border-b mb-4">
         <div className="flex items-center justify-between text-xs">
           <div className={`flex items-center ${currentStep === "selection" ? "text-blue-600" : "text-gray-400"}`}>
             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
@@ -202,24 +185,23 @@ export default function POSInterface() {
             ) : (
               <div className="space-y-3">
                 {documentTypes.map((docType: DocumentType) => (
-                  <Button
-                    key={docType.id}
-                    variant="outline"
+                  <Card 
+                    key={docType.id} 
+                    className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-blue-300"
                     onClick={() => handleDocumentSelection(docType)}
-                    className="w-full text-left p-4 h-auto border-2 hover:border-blue-600 hover:bg-blue-50"
                   >
-                    <div className="flex items-center">
-                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <i className="fas fa-file-contract text-blue-600 text-lg"></i>
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900">{docType.name}</h3>
+                          <p className="text-sm text-gray-600 mt-1">{docType.description}</p>
+                        </div>
+                        <Badge variant="secondary" className="ml-3">
+                          {docType.price}
+                        </Badge>
                       </div>
-                      <div className="ml-3 flex-1">
-                        <h3 className="font-medium text-gray-900">{docType.name}</h3>
-                        <p className="text-sm text-gray-500">{docType.description}</p>
-                        <p className="text-xs text-blue-600 font-semibold">${docType.price} CLP</p>
-                      </div>
-                      <i className="fas fa-chevron-right text-gray-400"></i>
-                    </div>
-                  </Button>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             )}
@@ -227,67 +209,163 @@ export default function POSInterface() {
         )}
 
         {/* Step 2: Verification */}
-        {currentStep === "verification" && (
-          <div className="text-center">
-            <h3 className="font-semibold text-gray-900 mb-2">Verificación de Identidad</h3>
-            <p className="text-sm text-gray-600 mb-4">Posicione su rostro en el centro de la cámara</p>
+        {currentStep === "verification" && selectedDocument && (
+          <>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Verificación de Identidad</h2>
             
-            <CameraCapture 
-              onCapture={handlePhotoCapture}
-              onError={(error) => {
-                toast({
-                  title: "Error de cámara",
-                  description: error,
-                  variant: "destructive",
-                });
-              }}
-            />
-          </div>
+            <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Documento seleccionado:</strong> {selectedDocument.name}
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Client Data Form */}
+              <div className="grid grid-cols-1 gap-3">
+                <input
+                  type="text"
+                  placeholder="Nombre completo"
+                  className="w-full p-3 border rounded-lg"
+                  value={clientData.name}
+                  onChange={(e) => setClientData(prev => ({ ...prev, name: e.target.value }))}
+                />
+                <input
+                  type="text"
+                  placeholder="RUT (12.345.678-9)"
+                  className="w-full p-3 border rounded-lg"
+                  value={clientData.rut}
+                  onChange={(e) => setClientData(prev => ({ ...prev, rut: e.target.value }))}
+                />
+                <input
+                  type="tel"
+                  placeholder="Teléfono (opcional)"
+                  className="w-full p-3 border rounded-lg"
+                  value={clientData.phone}
+                  onChange={(e) => setClientData(prev => ({ ...prev, phone: e.target.value }))}
+                />
+              </div>
+
+              {/* Camera Capture */}
+              <div>
+                <h3 className="font-medium text-gray-900 mb-2">Captura de Fotografía</h3>
+                <CameraCapture 
+                  onCapture={handlePhotoCapture}
+                  className="w-full"
+                />
+                {capturedPhoto && (
+                  <div className="mt-2 flex justify-end">
+                    <Button 
+                      onClick={() => setCurrentStep("signature")}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      Continuar
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
         )}
 
         {/* Step 3: Signature */}
         {currentStep === "signature" && (
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-4">Firma del Cliente</h3>
+          <>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Firma del Cliente</h2>
             
-            <SignatureCanvas 
-              onSignatureComplete={handleSignatureComplete}
-              onClear={() => setSignature(null)}
-            />
-          </div>
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-medium text-gray-900 mb-2">Firme en el recuadro</h3>
+                <SignatureCanvas onSave={handleSignature} />
+              </div>
+
+              {signature && (
+                <div className="flex justify-end">
+                  <Button 
+                    onClick={handleComplete}
+                    disabled={createDocumentMutation.isPending}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {createDocumentMutation.isPending ? "Procesando..." : "Completar Documento"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {/* Step 4: Completed */}
         {currentStep === "completed" && (
-          <div className="text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="fas fa-check text-green-600 text-2xl"></i>
+          <>
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">¡Documento Procesado!</h2>
+              <p className="text-gray-600 mb-6">
+                El documento ha sido enviado para certificación.
+              </p>
+              <Button 
+                onClick={resetProcess}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Nuevo Documento
+              </Button>
             </div>
-            <h3 className="font-semibold text-gray-900 mb-2">Documento Enviado</h3>
-            <p className="text-sm text-gray-600 mb-6">
-              Su documento ha sido enviado para firma avanzada. Recibirá el documento firmado por WhatsApp en los próximos minutos.
-            </p>
-            
-            <Button onClick={resetProcess} className="w-full bg-blue-600 hover:bg-blue-700">
-              <i className="fas fa-plus mr-2"></i>
-              Nuevo Documento
-            </Button>
-          </div>
+          </>
         )}
       </div>
+    </>
+  );
 
-      {/* Status Footer */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t p-4">
+  return (
+    <div className="max-w-6xl mx-auto bg-white min-h-screen">
+      {/* POS Header */}
+      <div className="bg-blue-600 text-white p-4">
         <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            <i className="fas fa-wifi text-green-500 mr-1"></i>
-            Conectado
+          <div>
+            <h1 className="text-lg font-bold">VecinoXpress POS</h1>
+            <p className="text-blue-200 text-sm">Terminal POS - Minimarket San Pedro</p>
           </div>
-          <div className="text-sm text-gray-600">
-            <i className="fas fa-shield-alt text-green-500 mr-1"></i>
-            Seguro SSL
+          <div className="text-right">
+            <div className="text-xs text-blue-200">GPS</div>
+            {location && (
+              <div className="text-sm font-mono">
+                {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+              </div>
+            )}
+            {locationError && (
+              <div className="text-sm text-red-200">Sin GPS</div>
+            )}
           </div>
         </div>
+      </div>
+
+      {/* Main Content with Tabs */}
+      <div className="p-4">
+        <Tabs defaultValue="documents" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="documents" className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Crear Documento
+            </TabsTrigger>
+            <TabsTrigger value="ai-search" className="flex items-center gap-2">
+              <Bot className="h-4 w-4" />
+              Agente IA
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="documents">
+            <div className="max-w-md mx-auto">
+              <DocumentCreationContent />
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="ai-search">
+            <AiDocumentSearch />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

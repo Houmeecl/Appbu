@@ -354,6 +354,21 @@ VecinoXpress is a comprehensive electronic signature system for legal documents 
 - ⚠️ **Acceso a cámara requiere HTTPS** en producción (normal en desarrollo)
 - ✅ **Sistema completamente funcional y listo para demostración**
 
+### Credenciales de Acceso POS - Junio 28, 2025
+- ✅ **Sistema de Autenticación POS Individual Implementado:**
+  - **POS001 (Minimarket San Pedro)**: Terminal ID: POS001 / Access Key: pos789
+  - **POS002 (Farmacia Central)**: Terminal ID: POS002 / Access Key: pos456  
+  - **POS003 (Abarrotes Don Juan)**: Terminal ID: POS003 / Access Key: pos123
+  - **POS004 (Supermercado La Esquina)**: Terminal ID: POS004 / Access Key: pos999
+  - **POS005 (Botillería El Trebol)**: Terminal ID: POS005 / Access Key: pos555
+- ✅ **Endpoints POS Operacionales:**
+  - `/api/pos/login` - Autenticación con Terminal ID y Access Key
+  - `/api/pos/renew-token` - Renovación automática de tokens JWT
+  - `/api/pos/validate-token` - Validación de sesión activa
+- ✅ **Base de datos actualizada** con campos terminalId y accessKey únicos
+- ✅ **Tokens JWT específicos para terminales** con expiración de 24 horas
+- ✅ **Logs de auditoría completos** para accesos y operaciones POS
+
 ## Mejoras Prioritarias Identificadas
 
 ### 1. Autenticación y Seguridad

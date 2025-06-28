@@ -21,6 +21,7 @@ export interface IStorage {
   // POS Terminals
   getPosTerminals(): Promise<PosTerminal[]>;
   getPosTerminal(id: number): Promise<PosTerminal | undefined>;
+  getPosTerminalByTerminalId(terminalId: string): Promise<PosTerminal | undefined>;
   createPosTerminal(terminal: InsertPosTerminal): Promise<PosTerminal>;
 
   // Documents
@@ -90,6 +91,11 @@ export class DatabaseStorage implements IStorage {
 
   async getPosTerminal(id: number): Promise<PosTerminal | undefined> {
     const [terminal] = await db.select().from(posTerminals).where(eq(posTerminals.id, id));
+    return terminal || undefined;
+  }
+
+  async getPosTerminalByTerminalId(terminalId: string): Promise<PosTerminal | undefined> {
+    const [terminal] = await db.select().from(posTerminals).where(eq(posTerminals.terminalId, terminalId));
     return terminal || undefined;
   }
 
