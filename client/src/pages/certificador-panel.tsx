@@ -155,7 +155,20 @@ export default function CertificadorPanel() {
       <header className="bg-white shadow-sm h-16 flex-shrink-0">
         <div className="flex justify-between items-center h-full px-6">
           <div className="flex items-center">
-            <h1 className="text-xl font-bold text-red-600">NotaryPro</h1>
+            <div className="flex items-center">
+              {/* Logo NotaryPro - Solo parte roja */}
+              <div className="relative">
+                <img 
+                  src={`${import.meta.env.BASE_URL}attached_assets/file_00000000be7c6230abade75100460c7c_1751098460822.png`}
+                  alt="NotaryPro Logo"
+                  className="h-10 w-auto object-contain"
+                  style={{ 
+                    clipPath: 'polygon(52% 0%, 100% 0%, 100% 100%, 52% 100%)',
+                    filter: 'saturate(1.3) contrast(1.1)'
+                  }}
+                />
+              </div>
+            </div>
             <Separator orientation="vertical" className="mx-4 h-6" />
             <span className="text-sm text-gray-600">Panel Certificador</span>
           </div>

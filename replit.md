@@ -306,6 +306,12 @@ VecinoXpress is a comprehensive electronic signature system for legal documents 
   - Modal completo solo para revisión y firma FEA
   - Indicadores visuales de estado eToken y conexión
   - Layout responsive que se adapta a orientación horizontal
+- ✅ **Branding Dual Implementado:**
+  - Logo NotaryPro (solo parte roja) integrado en header del panel certificador
+  - Logo VecinoXpress (solo parte azul) integrado en header del POS
+  - Uso de imagen original con clipPath CSS para mostrar secciones específicas
+  - Filtros de saturación, brillo y contraste para mejorar visibilidad
+  - Tamaños optimizados para cada interfaz (h-10 certificador, h-12 POS)
 
 ### Sistema Completo Funcional Real - Junio 28, 2025 (Actualización Final)
 - ✅ **Servicio eToken SafeNet 5110 Completo:**
