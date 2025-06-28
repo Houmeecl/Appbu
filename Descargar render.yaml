@@ -1,0 +1,16 @@
+
+services:
+  - type: web
+    name: appbu
+    env: node
+    plan: free
+    branch: main
+    buildCommand: npm install && npm run build
+    startCommand: npm run preview
+    envVars:
+      - key: DATABASE_URL
+        value: postgresql://neondb_owner:npg_27ZqmsaOuKze@ep-lucky-morning-aeh97tf2.c-2.us-east-1.aws.neon.tech/neondb
+      - key: PORT
+        value: 3000
+      - key: JWT_SECRET
+        value: notarypro123secure
