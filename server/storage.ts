@@ -132,22 +132,8 @@ export class DatabaseStorage implements IStorage {
       .offset(offset);
   }
 
-  async createDocument(document: InsertDocument): Promise<Document> {
-    // Generate document number
-    const year = new Date().getFullYear();
-    const count = await db.select({ count: sql`count(*)` }).from(documents);
-    const documentNumber = `DOC-${year}-${String(Number(count[0].count) + 1).padStart(6, '0')}`;
-    
-    // Generate hash
-    const crypto = await import('crypto');
-    const hash = crypto.randomBytes(32).toString('hex');
-
-    const [newDocument] = await db.insert(documents).values({
-      ...document,
-      documentNumber,
-      hash,
-    }).returning();
-    
+  async createDocument(document: any): Promise<Document> {
+    const [newDocument] = await db.insert(documents).values(document).returning();
     return newDocument;
   }
 
