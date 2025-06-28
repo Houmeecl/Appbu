@@ -12,9 +12,25 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  // Get token from localStorage for authenticated requests
+  const token = localStorage.getItem('admin_token') || 
+                localStorage.getItem('certificador_token') || 
+                localStorage.getItem('supervisor_token') || 
+                localStorage.getItem('pos_token');
+
+  const headers: Record<string, string> = {};
+  
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -29,8 +45,21 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    // Get token from localStorage for authenticated requests
+    const token = localStorage.getItem('admin_token') || 
+                  localStorage.getItem('certificador_token') || 
+                  localStorage.getItem('supervisor_token') || 
+                  localStorage.getItem('pos_token');
+
+    const headers: Record<string, string> = {};
+    
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     const res = await fetch(queryKey[0] as string, {
       credentials: "include",
+      headers,
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
