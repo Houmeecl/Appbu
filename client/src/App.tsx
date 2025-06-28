@@ -9,6 +9,7 @@ import POSInterface from "@/pages/pos-interface";
 import CertificadorPanel from "@/pages/certificador-panel";
 import ValidationInterface from "@/pages/validation-interface";
 import Dashboard from "@/pages/dashboard";
+import AdminPanel from "@/pages/admin-panel";
 import NotFound from "@/pages/not-found";
 
 function Navigation() {
@@ -19,6 +20,7 @@ function Navigation() {
     { id: "certificador", label: "Panel Certificador", icon: "fas fa-certificate", color: "text-red-600" },
     { id: "validation", label: "Validación Pública", icon: "fas fa-search", color: "text-gray-600" },
     { id: "dashboard", label: "Dashboard", icon: "fas fa-chart-line", color: "text-gray-600" },
+    { id: "admin", label: "Administración", icon: "fas fa-shield-alt", color: "text-purple-600" },
   ];
 
   return (
@@ -51,6 +53,7 @@ function Navigation() {
         {activeInterface === "certificador" && <CertificadorPanel />}
         {activeInterface === "validation" && <ValidationInterface />}
         {activeInterface === "dashboard" && <Dashboard />}
+        {activeInterface === "admin" && <AdminPanel />}
       </div>
     </div>
   );

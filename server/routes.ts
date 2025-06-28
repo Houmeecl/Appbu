@@ -480,6 +480,176 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin Panel Endpoints
+  app.get("/api/admin/users", authenticateToken, requireRole(["admin"]), async (req, res) => {
+    try {
+      // In a real implementation, you would have a method to get all users
+      // For now, we'll return mock data structure
+      const users = [
+        {
+          id: 1,
+          username: "admin",
+          name: "Administrador Principal",
+          role: "admin",
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 2,
+          username: "certificador1",
+          name: "María González",
+          role: "certificador",
+          createdAt: new Date().toISOString()
+        }
+      ];
+      
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.get("/api/admin/pos-terminals", authenticateToken, requireRole(["admin"]), async (req, res) => {
+    try {
+      const terminals = await storage.getPosTerminals();
+      
+      // Enhance with additional monitoring data
+      const enhancedTerminals = await Promise.all(
+        terminals.map(async (terminal) => {
+          // Get document count for this terminal
+          const documents = await storage.getDocuments(100, 0);
+          const terminalDocs = documents.filter(doc => doc.posTerminalId === terminal.id);
+          
+          return {
+            ...terminal,
+            accessKey: `POS-${terminal.id}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+            isActive: Math.random() > 0.3, // Mock active status
+            lastActivity: new Date().toISOString(),
+            documentsCount: terminalDocs.length,
+            coordinates: `${terminal.latitude || -33.4175}, ${terminal.longitude || -70.6061}`
+          };
+        })
+      );
+      
+      res.json(enhancedTerminals);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch POS terminals" });
+    }
+  });
+
+  app.post("/api/admin/pos-terminals", authenticateToken, requireRole(["admin"]), async (req, res) => {
+    try {
+      const { name, location, address, coordinates, accessKey } = req.body;
+      
+      if (!name || !location || !address) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+      
+      // Parse coordinates
+      const [lat, lng] = coordinates.split(',').map((coord: string) => parseFloat(coord.trim()));
+      
+      const terminal = await storage.createPosTerminal({
+        name: sanitizeInput(name),
+        location: sanitizeInput(location),
+        address: sanitizeInput(address),
+        latitude: lat,
+        longitude: lng
+      });
+      
+      // Log terminal creation
+      await storage.createAuditLog({
+        action: "pos_terminal_created",
+        details: { terminalName: name, location, accessKey },
+        ipAddress: req.ip,
+      });
+      
+      res.status(201).json({
+        ...terminal,
+        accessKey,
+        isActive: true,
+        documentsCount: 0
+      });
+    } catch (error) {
+      console.error("POS terminal creation error:", error);
+      res.status(500).json({ message: "Failed to create POS terminal" });
+    }
+  });
+
+  app.get("/api/admin/monitoring", authenticateToken, requireRole(["admin"]), async (req, res) => {
+    try {
+      const posTerminals = await storage.getPosTerminals();
+      const documentStats = await storage.getDocumentStats();
+      
+      // Calculate active terminals (mock for now)
+      const activeTerminals = Math.floor(posTerminals.length * 0.8);
+      
+      // System alerts (mock implementation)
+      const systemAlerts = [];
+      
+      // Check for pending documents alert
+      if (documentStats.pendingDocuments > 10) {
+        systemAlerts.push({
+          type: "warning",
+          message: `${documentStats.pendingDocuments} documentos pendientes de certificación`
+        });
+      }
+      
+      // Check for eToken status
+      const etokenAvailable = await etokenService.checkTokenAvailability();
+      if (!etokenAvailable) {
+        systemAlerts.push({
+          type: "error",
+          message: "eToken SafeNet 5110 no detectado - funcionalidad de FEA limitada"
+        });
+      }
+      
+      res.json({
+        activeTerminals,
+        totalDocuments: documentStats.totalDocuments,
+        pendingDocuments: documentStats.pendingDocuments,
+        activeUsers: 3, // Mock active users count
+        systemAlerts,
+        lastUpdate: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch monitoring data" });
+    }
+  });
+
+  // GPS Tracking for POS terminals
+  app.post("/api/admin/pos-terminals/:id/location", authenticateToken, requireRole(["admin", "operador"]), async (req, res) => {
+    try {
+      const terminalId = parseInt(req.params.id);
+      const { latitude, longitude, accuracy } = req.body;
+      
+      if (!latitude || !longitude) {
+        return res.status(400).json({ message: "Latitude and longitude required" });
+      }
+      
+      // Validate coordinates are within Chile
+      if (!validateChileanGPS(latitude, longitude)) {
+        return res.status(400).json({ message: "Coordinates outside Chilean territory" });
+      }
+      
+      // Update terminal location (you would need to add this method to storage)
+      // await storage.updatePosTerminalLocation(terminalId, latitude, longitude);
+      
+      // Log location update
+      await storage.createAuditLog({
+        action: "pos_location_updated",
+        details: { terminalId, latitude, longitude, accuracy },
+        ipAddress: req.ip,
+      });
+      
+      res.json({
+        message: "Location updated successfully",
+        coordinates: { latitude, longitude, accuracy },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update location" });
+    }
+  });
+
   // Dashboard Statistics with enhanced data
   app.get("/api/stats", async (req, res) => {
     try {
