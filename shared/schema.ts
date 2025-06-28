@@ -15,11 +15,13 @@ export const users = pgTable("users", {
 
 export const posTerminals = pgTable("pos_terminals", {
   id: serial("id").primaryKey(),
+  terminalId: text("terminal_id").notNull().unique(), // Unique terminal identifier (e.g., POS001)
   name: text("name").notNull(),
   address: text("address").notNull(),
   latitude: decimal("latitude", { precision: 10, scale: 8 }),
   longitude: decimal("longitude", { precision: 11, scale: 8 }),
   region: text("region").notNull(),
+  accessKey: text("access_key").notNull(), // Hashed access key for authentication
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });

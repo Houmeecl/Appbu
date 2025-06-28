@@ -20,6 +20,129 @@ import { validateRUT, sanitizeInput } from './utils/validation';
 import bcrypt from 'bcryptjs';
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // POS Terminal Authentication
+  app.post("/api/pos/login", rateLimit(10, 60 * 1000), async (req, res) => {
+    try {
+      const { terminalId, accessKey } = req.body;
+      
+      if (!terminalId || !accessKey) {
+        return res.status(400).json({ message: "Terminal ID y Access Key son requeridos" });
+      }
+
+      // Find POS terminal by ID
+      const terminal = await storage.getPosTerminalByTerminalId(sanitizeInput(terminalId));
+      if (!terminal || !terminal.isActive) {
+        return res.status(401).json({ message: "Terminal no encontrado o inactivo" });
+      }
+
+      // Verify access key
+      const isValidKey = await bcrypt.compare(accessKey, terminal.accessKey);
+      if (!isValidKey) {
+        return res.status(401).json({ message: "Credenciales inválidas" });
+      }
+
+      // Generate JWT token for POS terminal
+      const token = generateToken({
+        id: terminal.id,
+        username: terminal.name,
+        role: 'pos',
+        terminalId: terminal.id
+      });
+
+      // Log successful POS login
+      await storage.createAuditLog({
+        action: "pos_login",
+        userId: null,
+        details: { 
+          terminalId: terminal.id,
+          terminalName: terminal.name,
+          ip: req.ip 
+        }
+      });
+
+      res.json({
+        success: true,
+        token,
+        terminal: {
+          id: terminal.id,
+          name: terminal.name,
+          location: terminal.address,
+          region: terminal.region
+        }
+      });
+    } catch (error: any) {
+      console.error('Error en login POS:', error);
+      res.status(500).json({ message: 'Error interno del servidor' });
+    }
+  });
+
+  // POS Token renewal endpoint
+  app.post("/api/pos/renew-token", async (req, res) => {
+    try {
+      const { token } = req.body;
+      
+      if (!token) {
+        return res.status(400).json({ message: "Token requerido" });
+      }
+
+      // Verify current token
+      const jwt = require('jsonwebtoken');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      
+      if (decoded.role !== 'pos') {
+        return res.status(401).json({ message: "Token inválido para terminal POS" });
+      }
+
+      // Generate new token
+      const newToken = generateToken({
+        id: decoded.id,
+        username: decoded.username,
+        role: 'pos',
+        terminalId: decoded.terminalId
+      });
+
+      res.json({
+        success: true,
+        token: newToken
+      });
+    } catch (error: any) {
+      console.error('Error renovando token POS:', error);
+      res.status(401).json({ message: 'Token inválido o expirado' });
+    }
+  });
+
+  // Validate POS token endpoint
+  app.post("/api/pos/validate-token", async (req, res) => {
+    try {
+      const { token } = req.body;
+      
+      if (!token) {
+        return res.status(400).json({ message: "Token requerido" });
+      }
+
+      const jwt = require('jsonwebtoken');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      
+      if (decoded.role !== 'pos') {
+        return res.status(401).json({ message: "Token inválido" });
+      }
+
+      res.json({
+        isValid: true,
+        terminal: {
+          id: decoded.id,
+          terminalId: decoded.terminalId,
+          name: decoded.username
+        }
+      });
+    } catch (error: any) {
+      res.status(401).json({ 
+        isValid: false, 
+        message: 'Token inválido o expirado' 
+      });
+    }
+  });
+
   // Authentication endpoints
   app.post("/api/auth/login", rateLimit(5, 15 * 60 * 1000), async (req, res) => {
     try {

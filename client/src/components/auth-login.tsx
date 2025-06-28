@@ -73,11 +73,18 @@ export function AuthLogin({ panelType, onLogin, title, description }: AuthLoginP
 
     try {
       const endpoint = panelType === 'pos' ? '/api/pos/login' : '/api/auth/login';
-      const response = await apiRequest('POST', endpoint, {
-        username: credentials.username,
-        password: credentials.password,
-        panelType
-      });
+      const payload = panelType === 'pos' 
+        ? {
+            terminalId: credentials.username,
+            accessKey: credentials.password
+          }
+        : {
+            username: credentials.username,
+            password: credentials.password,
+            panelType
+          };
+      
+      const response = await apiRequest('POST', endpoint, payload);
 
       const userData = await response.json();
       localStorage.setItem(`${panelType}_token`, userData.token);
