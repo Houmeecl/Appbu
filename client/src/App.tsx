@@ -11,6 +11,8 @@ import ValidationInterface from "@/pages/validation-interface";
 import Dashboard from "@/pages/dashboard";
 import AdminPanel from "@/pages/admin-panel";
 import NotFound from "@/pages/not-found";
+import LandingPage from "@/pages/landing-page";
+import InstallationHelp from "@/pages/installation-help";
 
 function Navigation() {
   const [activeInterface, setActiveInterface] = useState<string>("pos");
@@ -62,12 +64,15 @@ function Navigation() {
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Navigation} />
-      <Route path="/certificador-panel" component={CertificadorPanel} />
-      <Route path="/pos-interface" component={POSInterface} />
-      <Route path="/validation-interface" component={ValidationInterface} />
+      <Route path="/" component={LandingPage} />
+      <Route path="/pos" component={POSInterface} />
+      <Route path="/certificador" component={CertificadorPanel} />
+      <Route path="/validar" component={ValidationInterface} />
+      <Route path="/validar/:code" component={ValidationInterface} />
       <Route path="/dashboard" component={Dashboard} />
-      <Route path="/admin-panel" component={AdminPanel} />
+      <Route path="/admin" component={AdminPanel} />
+      <Route path="/instalacion" component={InstallationHelp} />
+      <Route path="/demo" component={Navigation} />
       <Route component={NotFound} />
     </Switch>
   );

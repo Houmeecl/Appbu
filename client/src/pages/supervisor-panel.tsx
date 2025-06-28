@@ -1,624 +1,623 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-import { Badge } from "../components/ui/badge";
-import { Switch } from "../components/ui/switch";
-import { Textarea } from "../components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
-import { Alert, AlertDescription } from "../components/ui/alert";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import { 
-  Settings, 
-  Video, 
+  Upload, 
   FileText, 
-  Shield, 
-  Monitor, 
-  Edit, 
-  Power, 
-  DollarSign,
-  MapPin,
-  Clock,
-  Users,
-  Eye,
-  Play,
-  Pause,
-  Volume2,
-  VolumeX,
-  RotateCcw
+  Eye, 
+  CheckCircle, 
+  AlertTriangle, 
+  Code2, 
+  Settings,
+  Download,
+  Search,
+  Zap,
+  BarChart3
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
-type PosTerminal = {
-  id: number;
-  name: string;
-  location: string;
-  address: string;
-  isActive: boolean;
-  lastActivity: string;
-  documentsCount: number;
-  latitude?: string;
-  longitude?: string;
-};
+interface UploadedTemplate {
+  filename: string;
+  size: number;
+  created: string;
+  variables: number;
+  preview: string;
+}
 
-type Certificador = {
-  id: number;
-  username: string;
-  name: string;
-  isActive: boolean;
-  lastLogin: string;
-  documentsProcessed: number;
-  role: string;
-};
-
-type DocumentValue = {
-  id: number;
-  name: string;
-  price: string;
-  description: string;
-  isActive: boolean;
-};
-
-type VideoSession = {
-  id: number;
-  documentId: number;
-  clientName: string;
-  startTime: string;
-  duration: number;
-  status: 'active' | 'completed' | 'cancelled';
-  recordingUrl?: string;
-  posTerminalId: number;
-};
+interface TemplateAnalysis {
+  totalVariables: number;
+  uniqueVariables: string[];
+  positions: Array<{ variable: string; start: number; end: number }>;
+  detectedFields: Array<{
+    name: string;
+    type: string;
+    required: boolean;
+    detected: boolean;
+  }>;
+  complexity: 'low' | 'medium' | 'high';
+  estimatedPrice: number;
+  contentStats: {
+    characters: number;
+    words: number;
+    lines: number;
+  };
+}
 
 export default function SupervisorPanel() {
-  const [activeTab, setActiveTab] = useState("pos-control");
-  const [videoFilter, setVideoFilter] = useState("active");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [templateName, setTemplateName] = useState("");
+  const [templateDescription, setTemplateDescription] = useState("");
+  const [templateCategory, setTemplateCategory] = useState("");
+  const [basePrice, setBasePrice] = useState("");
+  const [previewContent, setPreviewContent] = useState("");
+  const [analysis, setAnalysis] = useState<TemplateAnalysis | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Queries para datos
-  const { data: posTerminals, isLoading: posLoading } = useQuery({
-    queryKey: ['/api/admin/pos-terminals'],
-    enabled: activeTab === "pos-control"
+  // Query para obtener plantillas subidas
+  const { data: uploadedTemplates = [], isLoading: loadingTemplates } = useQuery({
+    queryKey: ['/api/supervisor/uploaded-templates'],
   });
 
-  const { data: certificadores, isLoading: certLoading } = useQuery({
-    queryKey: ['/api/admin/users'],
-    enabled: activeTab === "certificadores"
-  });
-
-  const { data: documentTypes, isLoading: docTypesLoading } = useQuery({
-    queryKey: ['/api/document-types'],
-    enabled: activeTab === "document-values"
-  });
-
-  const { data: videoSessions, isLoading: videoLoading } = useQuery({
-    queryKey: ['/api/supervisor/video-sessions'],
-    enabled: activeTab === "video-manager"
-  });
-
-  // Mutaciones para control POS
-  const togglePosMutation = useMutation({
-    mutationFn: async ({ id, isActive }: { id: number; isActive: boolean }) => {
-      const response = await fetch(`/api/supervisor/pos/${id}/toggle`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive })
+  // Mutation para subir plantilla
+  const uploadMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      setUploadProgress(0);
+      const response = await fetch('/api/supervisor/upload-template', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formData
       });
-      if (!response.ok) throw new Error('Failed to toggle POS');
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Error subiendo plantilla');
+      }
+
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/pos-terminals'] });
-    }
-  });
-
-  // Mutación para actualizar valores de documentos
-  const updateDocumentValueMutation = useMutation({
-    mutationFn: async ({ id, price }: { id: number; price: string }) => {
-      const response = await fetch(`/api/supervisor/document-types/${id}/price`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ price })
+    onSuccess: (data) => {
+      setUploadProgress(100);
+      toast({
+        title: "Plantilla Procesada",
+        description: `${data.templateName} agregada al sistema exitosamente`,
       });
-      if (!response.ok) throw new Error('Failed to update document price');
-      return response.json();
-    },
-    onSuccess: () => {
+      
+      // Limpiar formulario
+      setSelectedFile(null);
+      setTemplateName("");
+      setTemplateDescription("");
+      setTemplateCategory("");
+      setBasePrice("");
+      setPreviewContent("");
+      setAnalysis(null);
+      setUploadProgress(0);
+      
+      // Refresh templates
+      queryClient.invalidateQueries({ queryKey: ['/api/supervisor/uploaded-templates'] });
       queryClient.invalidateQueries({ queryKey: ['/api/document-types'] });
-    }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      setUploadProgress(0);
+    },
   });
 
-  // Mutación para control de certificadores
-  const toggleCertificadorMutation = useMutation({
-    mutationFn: async ({ id, isActive }: { id: number; isActive: boolean }) => {
-      const response = await fetch(`/api/supervisor/certificadores/${id}/toggle`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive })
+  // Mutation para analizar plantilla
+  const analyzeMutation = useMutation({
+    mutationFn: async (content: string) => {
+      return await apiRequest('/api/supervisor/analyze-template', {
+        method: 'POST',
+        body: { content }
       });
-      if (!response.ok) throw new Error('Failed to toggle certificador');
-      return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
-    }
+    onSuccess: (data) => {
+      setAnalysis(data.analysis);
+      toast({
+        title: "Análisis Completado",
+        description: `${data.analysis.totalVariables} variables detectadas`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error de Análisis",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
+
+  // Mutation para vista previa
+  const previewMutation = useMutation({
+    mutationFn: async (content: string) => {
+      return await apiRequest('/api/supervisor/preview-template', {
+        method: 'POST',
+        body: { content }
+      });
+    },
+    onSuccess: (data) => {
+      setPreviewContent(data.preview);
+      toast({
+        title: "Vista Previa Generada",
+        description: `${data.variables.length} variables reemplazadas`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error de Vista Previa",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      if (!templateName) {
+        setTemplateName(file.name.replace(/\.[^/.]+$/, ""));
+      }
+
+      // Leer contenido para análisis automático
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        if (content) {
+          analyzeMutation.mutate(content);
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleUpload = () => {
+    if (!selectedFile) {
+      toast({
+        title: "Error",
+        description: "Por favor selecciona un archivo",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!templateName.trim()) {
+      toast({
+        title: "Error",
+        description: "Por favor ingresa un nombre para la plantilla",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('template', selectedFile);
+    formData.append('name', templateName);
+    formData.append('description', templateDescription);
+    formData.append('category', templateCategory);
+    formData.append('basePrice', basePrice);
+
+    uploadMutation.mutate(formData);
+  };
+
+  const generatePreview = () => {
+    if (!selectedFile) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (content) {
+        previewMutation.mutate(content);
+      }
+    };
+    reader.readAsText(selectedFile);
+  };
+
+  const getComplexityColor = (complexity: string) => {
+    switch (complexity) {
+      case 'low': return 'bg-green-100 text-green-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'high': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getComplexityIcon = (complexity: string) => {
+    switch (complexity) {
+      case 'low': return <CheckCircle className="h-4 w-4" />;
+      case 'medium': return <AlertTriangle className="h-4 w-4" />;
+      case 'high': return <Zap className="h-4 w-4" />;
+      default: return <BarChart3 className="h-4 w-4" />;
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-7xl mx-auto">
+        {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Panel Supervisor</h1>
-          <p className="text-gray-600">Control integral de POS, certificadores y gestión documental</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Panel Supervisor - Gestión de Plantillas
+          </h1>
+          <p className="text-gray-600">
+            Sube y adapta automáticamente plantillas de documentos legales al sistema VecinoXpress
+          </p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="pos-control" className="flex items-center gap-2">
-              <Monitor className="h-4 w-4" />
-              Control POS
+        <Tabs defaultValue="upload" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="upload" className="flex items-center gap-2">
+              <Upload className="h-4 w-4" />
+              Subir Plantilla
             </TabsTrigger>
-            <TabsTrigger value="certificadores" className="flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              Certificadores
+            <TabsTrigger value="templates" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Plantillas Subidas
             </TabsTrigger>
-            <TabsTrigger value="document-values" className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Valores Documentos
-            </TabsTrigger>
-            <TabsTrigger value="video-manager" className="flex items-center gap-2">
-              <Video className="h-4 w-4" />
-              Gestión Video
+            <TabsTrigger value="analysis" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Análisis
             </TabsTrigger>
           </TabsList>
 
-          {/* Control POS */}
-          <TabsContent value="pos-control">
-            <div className="grid gap-6">
+          {/* Tab: Subir Plantilla */}
+          <TabsContent value="upload" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Formulario de Upload */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Settings className="h-5 w-5" />
-                    Control de Terminales POS
+                    <Upload className="h-5 w-5" />
+                    Subir Nueva Plantilla
                   </CardTitle>
+                  <CardDescription>
+                    Sube un archivo HTML o TXT con variables {{variable}} para adaptación automática
+                  </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4">
-                    {posLoading ? (
-                      <div className="text-center py-8">Cargando terminales...</div>
-                    ) : (
-                      Array.isArray(posTerminals) ? posTerminals.map((terminal: PosTerminal) => (
-                        <Card key={terminal.id} className="border-l-4 border-l-blue-500">
-                          <CardContent className="p-4">
-                            <div className="flex items-center justify-between">
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-3">
-                                  <h3 className="font-semibold">{terminal.name}</h3>
-                                  <Badge variant={terminal.isActive ? "default" : "secondary"}>
-                                    {terminal.isActive ? "Activo" : "Inactivo"}
-                                  </Badge>
-                                </div>
-                                <div className="text-sm text-gray-600 space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <MapPin className="h-3 w-3" />
-                                    {terminal.location} - {terminal.address}
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Clock className="h-3 w-3" />
-                                    Última actividad: {new Date(terminal.lastActivity).toLocaleString()}
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <FileText className="h-3 w-3" />
-                                    Documentos procesados: {terminal.documentsCount}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm">
-                                      <Edit className="h-3 w-3 mr-1" />
-                                      Configurar
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent>
-                                    <DialogHeader>
-                                      <DialogTitle>Configurar Terminal {terminal.name}</DialogTitle>
-                                    </DialogHeader>
-                                    <PosConfigForm terminal={terminal} />
-                                  </DialogContent>
-                                </Dialog>
-                                <Switch
-                                  checked={terminal.isActive}
-                                  onCheckedChange={(checked) => {
-                                    togglePosMutation.mutate({ id: terminal.id, isActive: checked });
-                                  }}
-                                  disabled={togglePosMutation.isPending}
-                                />
-                                <Power className={`h-4 w-4 ${terminal.isActive ? 'text-green-500' : 'text-gray-400'}`} />
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )) : <div className="text-center py-8">No hay terminales registrados</div>
+                <CardContent className="space-y-4">
+                  {/* Selector de archivo */}
+                  <div>
+                    <Label htmlFor="file-upload">Archivo de Plantilla</Label>
+                    <Input
+                      id="file-upload"
+                      type="file"
+                      accept=".html,.txt"
+                      onChange={handleFileSelect}
+                      className="mt-1"
+                    />
+                    {selectedFile && (
+                      <p className="text-sm text-gray-600 mt-2">
+                        Archivo: {selectedFile.name} ({Math.round(selectedFile.size / 1024)} KB)
+                      </p>
                     )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Metadatos */}
+                  <div>
+                    <Label htmlFor="template-name">Nombre de la Plantilla</Label>
+                    <Input
+                      id="template-name"
+                      value={templateName}
+                      onChange={(e) => setTemplateName(e.target.value)}
+                      placeholder="Ej: Poder Notarial Especial"
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="template-description">Descripción (Opcional)</Label>
+                    <Textarea
+                      id="template-description"
+                      value={templateDescription}
+                      onChange={(e) => setTemplateDescription(e.target.value)}
+                      placeholder="Describe el propósito de este documento..."
+                      className="mt-1"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="template-category">Categoría</Label>
+                      <Input
+                        id="template-category"
+                        value={templateCategory}
+                        onChange={(e) => setTemplateCategory(e.target.value)}
+                        placeholder="Ej: Poderes"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="base-price">Precio Base (CLP)</Label>
+                      <Input
+                        id="base-price"
+                        type="number"
+                        value={basePrice}
+                        onChange={(e) => setBasePrice(e.target.value)}
+                        placeholder="2000"
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Progress bar durante upload */}
+                  {uploadProgress > 0 && uploadProgress < 100 && (
+                    <div>
+                      <Label>Progreso de Subida</Label>
+                      <Progress value={uploadProgress} className="mt-2" />
+                    </div>
+                  )}
+
+                  {/* Botones de acción */}
+                  <div className="flex gap-2 pt-4">
+                    <Button
+                      onClick={handleUpload}
+                      disabled={!selectedFile || uploadMutation.isPending}
+                      className="flex-1"
+                    >
+                      {uploadMutation.isPending ? 'Procesando...' : 'Subir y Procesar'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={generatePreview}
+                      disabled={!selectedFile || previewMutation.isPending}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      Vista Previa
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Análisis automático */}
+              {analysis && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Code2 className="h-5 w-5" />
+                      Análisis Automático
+                    </CardTitle>
+                    <CardDescription>
+                      Variables y campos detectados en la plantilla
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Estadísticas generales */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="text-center p-3 bg-blue-50 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-600">
+                          {analysis.totalVariables}
+                        </div>
+                        <div className="text-sm text-blue-800">Variables</div>
+                      </div>
+                      <div className="text-center p-3 bg-green-50 rounded-lg">
+                        <div className="text-2xl font-bold text-green-600">
+                          ${analysis.estimatedPrice.toLocaleString('es-CL')}
+                        </div>
+                        <div className="text-sm text-green-800">Precio Estimado</div>
+                      </div>
+                    </div>
+
+                    {/* Complejidad */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Complejidad:</span>
+                      <Badge className={`${getComplexityColor(analysis.complexity)} flex items-center gap-1`}>
+                        {getComplexityIcon(analysis.complexity)}
+                        {analysis.complexity.toUpperCase()}
+                      </Badge>
+                    </div>
+
+                    {/* Estadísticas de contenido */}
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <div>Caracteres: {analysis.contentStats.characters.toLocaleString()}</div>
+                      <div>Palabras: {analysis.contentStats.words.toLocaleString()}</div>
+                      <div>Líneas: {analysis.contentStats.lines.toLocaleString()}</div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Campos detectados */}
+                    <div>
+                      <Label className="text-sm font-medium">Campos Detectados:</Label>
+                      <ScrollArea className="h-32 mt-2">
+                        <div className="space-y-2">
+                          {analysis.detectedFields.map((field, index) => (
+                            <div key={index} className="flex items-center justify-between text-sm">
+                              <span className="flex items-center gap-2">
+                                <code className="bg-gray-100 px-1 rounded text-xs">
+                                  {field.name}
+                                </code>
+                                {field.required && (
+                                  <Badge variant="destructive" className="text-xs px-1">
+                                    Req
+                                  </Badge>
+                                )}
+                              </span>
+                              <Badge variant="outline" className="text-xs">
+                                {field.type}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
+
+            {/* Vista previa */}
+            {previewContent && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Eye className="h-5 w-5" />
+                    Vista Previa con Datos de Muestra
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-64 w-full border rounded-lg p-4 bg-white">
+                    <div 
+                      className="prose max-w-none"
+                      dangerouslySetInnerHTML={{ __html: previewContent }}
+                    />
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
-          {/* Certificadores */}
-          <TabsContent value="certificadores">
+          {/* Tab: Plantillas Subidas */}
+          <TabsContent value="templates">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Control de Certificadores
+                  <FileText className="h-5 w-5" />
+                  Plantillas Subidas
                 </CardTitle>
+                <CardDescription>
+                  Historial de plantillas procesadas y agregadas al sistema
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-4">
-                  {certLoading ? (
-                    <div className="text-center py-8">Cargando certificadores...</div>
-                  ) : (
-                    Array.isArray(certificadores) ? certificadores
-                      .filter((user: any) => user.role === 'certificador')
-                      .map((cert: Certificador) => (
-                        <Card key={cert.id} className="border-l-4 border-l-green-500">
-                          <CardContent className="p-4">
-                            <div className="flex items-center justify-between">
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-3">
-                                  <h3 className="font-semibold">{cert.name}</h3>
-                                  <Badge variant="outline">@{cert.username}</Badge>
-                                  <Badge variant={cert.isActive ? "default" : "secondary"}>
-                                    {cert.isActive ? "Habilitado" : "Deshabilitado"}
-                                  </Badge>
-                                </div>
-                                <div className="text-sm text-gray-600 space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <Clock className="h-3 w-3" />
-                                    Último acceso: {new Date(cert.lastLogin).toLocaleString()}
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <FileText className="h-3 w-3" />
-                                    Documentos procesados: {cert.documentsProcessed}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm">
-                                      <Edit className="h-3 w-3 mr-1" />
-                                      Editar
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent>
-                                    <DialogHeader>
-                                      <DialogTitle>Editar Certificador {cert.name}</DialogTitle>
-                                    </DialogHeader>
-                                    <CertificadorForm certificador={cert} />
-                                  </DialogContent>
-                                </Dialog>
-                                <Switch
-                                  checked={cert.isActive}
-                                  onCheckedChange={(checked) => {
-                                    toggleCertificadorMutation.mutate({ id: cert.id, isActive: checked });
-                                  }}
-                                  disabled={toggleCertificadorMutation.isPending}
-                                />
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )) : <div className="text-center py-8">No hay certificadores</div>
-                  )}
-                </div>
+                {loadingTemplates ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="text-gray-600 mt-2">Cargando plantillas...</p>
+                  </div>
+                ) : uploadedTemplates.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">No hay plantillas subidas aún</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {uploadedTemplates.map((template: UploadedTemplate, index: number) => (
+                      <div key={index} className="border rounded-lg p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium">{template.filename}</h4>
+                          <Badge variant="outline">
+                            {template.variables} variables
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          <div>Tamaño: {Math.round(template.size / 1024)} KB</div>
+                          <div>Creado: {new Date(template.created).toLocaleDateString('es-CL')}</div>
+                        </div>
+                        <div className="text-sm text-gray-500 bg-gray-50 p-2 rounded">
+                          {template.preview}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Valores de Documentos */}
-          <TabsContent value="document-values">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
-                  Gestión de Precios de Documentos
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4">
-                  {docTypesLoading ? (
-                    <div className="text-center py-8">Cargando tipos de documentos...</div>
-                  ) : (
-                    Array.isArray(documentTypes) ? documentTypes.map((docType: DocumentValue) => (
-                      <Card key={docType.id} className="border-l-4 border-l-yellow-500">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-2">
-                              <h3 className="font-semibold">{docType.name}</h3>
-                              <p className="text-sm text-gray-600">{docType.description}</p>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-lg font-bold">
-                                  ${docType.price}
+          {/* Tab: Análisis */}
+          <TabsContent value="analysis">
+            {analysis ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Análisis Detallado</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div className="p-4 bg-blue-50 rounded-lg">
+                        <div className="text-xl font-bold text-blue-600">
+                          {analysis.totalVariables}
+                        </div>
+                        <div className="text-sm text-blue-800">Variables</div>
+                      </div>
+                      <div className="p-4 bg-green-50 rounded-lg">
+                        <div className="text-xl font-bold text-green-600">
+                          ${analysis.estimatedPrice.toLocaleString('es-CL')}
+                        </div>
+                        <div className="text-sm text-green-800">Precio</div>
+                      </div>
+                      <div className="p-4 bg-purple-50 rounded-lg">
+                        <div className="text-xl font-bold text-purple-600">
+                          {analysis.contentStats.words}
+                        </div>
+                        <div className="text-sm text-purple-800">Palabras</div>
+                      </div>
+                    </div>
+
+                    <Alert>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>
+                        El sistema ha detectado automáticamente {analysis.detectedFields.filter(f => f.required).length} campos obligatorios
+                        y asignado tipos de datos apropiados para validación.
+                      </AlertDescription>
+                    </Alert>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Variables Detectadas</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ScrollArea className="h-64">
+                      <div className="space-y-2">
+                        {analysis.uniqueVariables.map((variable, index) => (
+                          <div key={index} className="flex items-center justify-between p-2 border rounded">
+                            <code className="text-sm bg-gray-100 px-2 py-1 rounded">
+                              {variable}
+                            </code>
+                            <div className="flex gap-2">
+                              {analysis.detectedFields.find(f => f.name === variable)?.required && (
+                                <Badge variant="destructive" className="text-xs">
+                                  Obligatorio
                                 </Badge>
-                                <Badge variant={docType.isActive ? "default" : "secondary"}>
-                                  {docType.isActive ? "Disponible" : "No disponible"}
-                                </Badge>
-                              </div>
+                              )}
+                              <Badge variant="outline" className="text-xs">
+                                {analysis.detectedFields.find(f => f.name === variable)?.type || 'text'}
+                              </Badge>
                             </div>
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button variant="outline">
-                                  <Edit className="h-3 w-3 mr-1" />
-                                  Modificar Precio
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Modificar Precio - {docType.name}</DialogTitle>
-                                </DialogHeader>
-                                <DocumentPriceForm 
-                                  docType={docType} 
-                                  onUpdate={(price) => updateDocumentValueMutation.mutate({ id: docType.id, price })}
-                                  isLoading={updateDocumentValueMutation.isPending}
-                                />
-                              </DialogContent>
-                            </Dialog>
                           </div>
-                        </CardContent>
-                      </Card>
-                    )) : <div className="text-center py-8">No hay tipos de documentos</div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Gestión de Video */}
-          <TabsContent value="video-manager">
-            <div className="space-y-6">
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Video className="h-5 w-5" />
-                    Gestión de Verificación por Video
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex gap-4 mb-4">
-                    <Select value={videoFilter} onValueChange={setVideoFilter}>
-                      <SelectTrigger className="w-48">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Sesiones Activas</SelectItem>
-                        <SelectItem value="completed">Completadas</SelectItem>
-                        <SelectItem value="cancelled">Canceladas</SelectItem>
-                        <SelectItem value="all">Todas</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid gap-4">
-                    {videoLoading ? (
-                      <div className="text-center py-8">Cargando sesiones de video...</div>
-                    ) : (
-                      <VideoSessionsList sessions={videoSessions || []} filter={videoFilter} />
-                    )}
-                  </div>
+                <CardContent className="text-center py-12">
+                  <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">
+                    Sube una plantilla en la pestaña "Subir Plantilla" para ver el análisis detallado
+                  </p>
                 </CardContent>
               </Card>
-            </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
-    </div>
-  );
-}
-
-// Componentes auxiliares
-function PosConfigForm({ terminal }: { terminal: PosTerminal }) {
-  const [config, setConfig] = useState({
-    name: terminal.name,
-    location: terminal.location,
-    address: terminal.address,
-    latitude: terminal.latitude || "",
-    longitude: terminal.longitude || ""
-  });
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <Label htmlFor="name">Nombre del Terminal</Label>
-        <Input
-          id="name"
-          value={config.name}
-          onChange={(e) => setConfig({ ...config, name: e.target.value })}
-        />
-      </div>
-      <div>
-        <Label htmlFor="location">Ubicación</Label>
-        <Input
-          id="location"
-          value={config.location}
-          onChange={(e) => setConfig({ ...config, location: e.target.value })}
-        />
-      </div>
-      <div>
-        <Label htmlFor="address">Dirección</Label>
-        <Textarea
-          id="address"
-          value={config.address}
-          onChange={(e) => setConfig({ ...config, address: e.target.value })}
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="lat">Latitud</Label>
-          <Input
-            id="lat"
-            value={config.latitude}
-            onChange={(e) => setConfig({ ...config, latitude: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label htmlFor="lng">Longitud</Label>
-          <Input
-            id="lng"
-            value={config.longitude}
-            onChange={(e) => setConfig({ ...config, longitude: e.target.value })}
-          />
-        </div>
-      </div>
-      <Button className="w-full">Guardar Configuración</Button>
-    </div>
-  );
-}
-
-function CertificadorForm({ certificador }: { certificador: Certificador }) {
-  return (
-    <div className="space-y-4">
-      <div>
-        <Label htmlFor="name">Nombre Completo</Label>
-        <Input id="name" defaultValue={certificador.name} />
-      </div>
-      <div>
-        <Label htmlFor="username">Usuario</Label>
-        <Input id="username" defaultValue={certificador.username} disabled />
-      </div>
-      <div>
-        <Label htmlFor="role">Rol</Label>
-        <Select defaultValue={certificador.role}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="certificador">Certificador</SelectItem>
-            <SelectItem value="supervisor">Supervisor</SelectItem>
-            <SelectItem value="admin">Administrador</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <Button className="w-full">Actualizar Certificador</Button>
-    </div>
-  );
-}
-
-function DocumentPriceForm({ 
-  docType, 
-  onUpdate, 
-  isLoading 
-}: { 
-  docType: DocumentValue; 
-  onUpdate: (price: string) => void; 
-  isLoading: boolean; 
-}) {
-  const [price, setPrice] = useState(docType.price);
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <Label htmlFor="current">Precio Actual</Label>
-        <Input id="current" value={`$${docType.price}`} disabled />
-      </div>
-      <div>
-        <Label htmlFor="new">Nuevo Precio</Label>
-        <Input
-          id="new"
-          type="number"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          placeholder="0.00"
-        />
-      </div>
-      <Button 
-        className="w-full" 
-        onClick={() => onUpdate(price)}
-        disabled={isLoading}
-      >
-        {isLoading ? "Actualizando..." : "Actualizar Precio"}
-      </Button>
-    </div>
-  );
-}
-
-function VideoSessionsList({ sessions, filter }: { sessions: VideoSession[]; filter: string }) {
-  const filteredSessions = sessions.filter(session => {
-    if (filter === "all") return true;
-    return session.status === filter;
-  });
-
-  if (filteredSessions.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <Video className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-        <p className="text-gray-500">No hay sesiones de video en esta categoría</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {filteredSessions.map(session => (
-        <Card key={session.id} className="border-l-4 border-l-purple-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <h3 className="font-semibold">{session.clientName}</h3>
-                  <Badge variant={
-                    session.status === 'active' ? 'default' : 
-                    session.status === 'completed' ? 'secondary' : 'destructive'
-                  }>
-                    {session.status === 'active' ? 'En vivo' : 
-                     session.status === 'completed' ? 'Completada' : 'Cancelada'}
-                  </Badge>
-                </div>
-                <div className="text-sm text-gray-600 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-3 w-3" />
-                    Inicio: {new Date(session.startTime).toLocaleString()}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-3 w-3" />
-                    Documento ID: {session.documentId}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Monitor className="h-3 w-3" />
-                    Terminal POS: {session.posTerminalId}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {session.status === 'active' && (
-                  <>
-                    <Button size="sm" variant="outline">
-                      <Eye className="h-3 w-3 mr-1" />
-                      Supervisar
-                    </Button>
-                    <Button size="sm" variant="outline">
-                      <Volume2 className="h-3 w-3 mr-1" />
-                      Audio
-                    </Button>
-                  </>
-                )}
-                {session.recordingUrl && (
-                  <Button size="sm" variant="outline">
-                    <Play className="h-3 w-3 mr-1" />
-                    Reproducir
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
     </div>
   );
 }

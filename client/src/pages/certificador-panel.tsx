@@ -20,8 +20,11 @@ import {
   FileText,
   Smartphone,
   Usb,
-  Settings
+  Settings,
+  Video,
+  Users
 } from "lucide-react";
+import { HybridAttentionPanel } from "@/components/hybrid-attention-panel";
 
 type PendingDocument = {
   id: number;

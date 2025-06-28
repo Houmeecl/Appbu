@@ -17,6 +17,7 @@ import { tuuPaymentService } from "./services/tuuPaymentService";
 import { posAuthService } from "./services/posAuthService";
 import { contractService } from "./services/contractService";
 import { emailService } from "./services/emailService";
+import { templateManagerService } from "./services/templateManagerService";
 import { authenticateToken, requireRole, generateToken, AuthRequest, rateLimit } from './middleware/auth';
 import { validateRUT, sanitizeInput } from './utils/validation';
 import bcrypt from 'bcryptjs';
@@ -2230,6 +2231,214 @@ Proporciona recomendaciones prácticas y específicas.`;
     } catch (error) {
       console.error('Error downloading contract:', error);
       res.status(500).json({ error: 'Error descargando contrato' });
+    }
+  });
+
+  // ===============================
+  // TEMPLATE MANAGER ENDPOINTS
+  // ===============================
+
+  // Subir nueva plantilla
+  app.post('/api/supervisor/upload-template', authenticateToken, requireRole(['admin', 'supervisor']), async (req: AuthRequest, res: Response) => {
+    try {
+      const multer = await import('multer');
+      const upload = multer.default({ 
+        storage: multer.default.memoryStorage(),
+        limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+        fileFilter: (req, file, cb) => {
+          if (file.mimetype === 'text/html' || file.mimetype === 'text/plain' || file.originalname.endsWith('.html') || file.originalname.endsWith('.txt')) {
+            cb(null, true);
+          } else {
+            cb(new Error('Solo se permiten archivos HTML o TXT'));
+          }
+        }
+      });
+
+      upload.single('template')(req, res, async (err: any) => {
+        if (err) {
+          return res.status(400).json({ error: err.message });
+        }
+
+        if (!req.file) {
+          return res.status(400).json({ error: 'No se ha subido ningún archivo' });
+        }
+
+        const content = req.file.buffer.toString('utf8');
+        const metadata = {
+          name: req.body.name || req.file.originalname.replace(/\.[^/.]+$/, ''),
+          description: req.body.description,
+          category: req.body.category,
+          basePrice: parseFloat(req.body.basePrice) || undefined
+        };
+
+        const result = await templateManagerService.processUploadedTemplate(
+          req.file.originalname,
+          content,
+          metadata
+        );
+
+        if (result.success) {
+          // Crear log de auditoría
+          await storage.createAuditLog({
+            action: 'template_uploaded',
+            userId: req.user!.id,
+            details: {
+              templateId: result.templateId,
+              filename: req.file.originalname,
+              templateName: metadata.name
+            },
+            ipAddress: req.ip
+          });
+
+          res.json({
+            success: true,
+            message: 'Plantilla procesada y agregada al sistema exitosamente',
+            templateId: result.templateId,
+            templateName: metadata.name
+          });
+        } else {
+          res.status(400).json({
+            success: false,
+            error: result.error
+          });
+        }
+      });
+    } catch (error: any) {
+      console.error('Error subiendo plantilla:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
+  // Vista previa de plantilla antes de procesar
+  app.post('/api/supervisor/preview-template', authenticateToken, requireRole(['admin', 'supervisor']), async (req: AuthRequest, res: Response) => {
+    try {
+      const { content, sampleData } = req.body;
+
+      if (!content) {
+        return res.status(400).json({ error: 'Contenido de plantilla requerido' });
+      }
+
+      // Parsear variables
+      const variableRegex = /\{\{?([^}]+)\}?\}/g;
+      const variables: string[] = [];
+      let match;
+
+      while ((match = variableRegex.exec(content)) !== null) {
+        const variable = match[1].trim();
+        if (!variables.includes(variable)) {
+          variables.push(variable);
+        }
+      }
+
+      // Generar datos de muestra si no se proporcionan
+      const defaultSampleData = templateManagerService.generateSampleData(variables);
+      const finalSampleData = { ...defaultSampleData, ...sampleData };
+
+      // Generar vista previa
+      const preview = await templateManagerService.previewTemplate(content, finalSampleData);
+
+      res.json({
+        success: true,
+        variables,
+        sampleData: finalSampleData,
+        preview,
+        metadata: {
+          variableCount: variables.length,
+          estimatedPrice: 2000 + (variables.length * 300),
+          contentLength: content.length
+        }
+      });
+    } catch (error: any) {
+      console.error('Error generando vista previa:', error);
+      res.status(500).json({ error: 'Error generando vista previa' });
+    }
+  });
+
+  // Obtener plantillas subidas
+  app.get('/api/supervisor/uploaded-templates', authenticateToken, requireRole(['admin', 'supervisor']), async (req: AuthRequest, res: Response) => {
+    try {
+      const templates = await templateManagerService.getUploadedTemplates();
+      res.json(templates);
+    } catch (error: any) {
+      console.error('Error obteniendo plantillas:', error);
+      res.status(500).json({ error: 'Error obteniendo plantillas' });
+    }
+  });
+
+  // Analizar plantilla (detectar variables sin procesar)
+  app.post('/api/supervisor/analyze-template', authenticateToken, requireRole(['admin', 'supervisor']), async (req: AuthRequest, res: Response) => {
+    try {
+      const { content } = req.body;
+
+      if (!content) {
+        return res.status(400).json({ error: 'Contenido de plantilla requerido' });
+      }
+
+      // Analizar variables
+      const variableRegex = /\{\{?([^}]+)\}?\}/g;
+      const variables: string[] = [];
+      const positions: Array<{ variable: string; start: number; end: number }> = [];
+      let match;
+
+      while ((match = variableRegex.exec(content)) !== null) {
+        const variable = match[1].trim();
+        if (!variables.includes(variable)) {
+          variables.push(variable);
+        }
+        positions.push({
+          variable,
+          start: match.index,
+          end: match.index + match[0].length
+        });
+      }
+
+      // Detectar tipos automáticamente
+      const detectedFields = variables.map(variable => {
+        const lowerVar = variable.toLowerCase();
+        let type = 'text';
+        let required = false;
+
+        if (lowerVar.includes('rut') || lowerVar.includes('cedula')) {
+          type = 'rut';
+          required = true;
+        } else if (lowerVar.includes('email')) {
+          type = 'email';
+          required = true;
+        } else if (lowerVar.includes('telefono') || lowerVar.includes('phone')) {
+          type = 'phone';
+        } else if (lowerVar.includes('fecha') || lowerVar.includes('date')) {
+          type = 'date';
+        } else if (lowerVar.includes('nombre')) {
+          required = true;
+        }
+
+        return {
+          name: variable,
+          type,
+          required,
+          detected: true
+        };
+      });
+
+      res.json({
+        success: true,
+        analysis: {
+          totalVariables: variables.length,
+          uniqueVariables: variables,
+          positions,
+          detectedFields,
+          complexity: variables.length > 10 ? 'high' : variables.length > 5 ? 'medium' : 'low',
+          estimatedPrice: 2000 + (variables.length * 300),
+          contentStats: {
+            characters: content.length,
+            words: content.split(/\s+/).length,
+            lines: content.split('\n').length
+          }
+        }
+      });
+    } catch (error: any) {
+      console.error('Error analizando plantilla:', error);
+      res.status(500).json({ error: 'Error analizando plantilla' });
     }
   });
 
