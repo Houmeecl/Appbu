@@ -73,26 +73,19 @@ export function AuthLogin({ panelType, onLogin, title, description }: AuthLoginP
 
     try {
       const endpoint = panelType === 'pos' ? '/api/pos/login' : '/api/auth/login';
-      const response = await apiRequest(endpoint, {
-        method: 'POST',
-        body: JSON.stringify({
-          username: credentials.username,
-          password: credentials.password,
-          panelType
-        })
+      const response = await apiRequest('POST', endpoint, {
+        username: credentials.username,
+        password: credentials.password,
+        panelType
       });
 
-      if (response.ok) {
-        const userData = await response.json();
-        localStorage.setItem(`${panelType}_token`, userData.token);
-        localStorage.setItem(`${panelType}_user`, JSON.stringify(userData.user));
-        onLogin(userData);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Error de autenticación');
-      }
+      const userData = await response.json();
+      localStorage.setItem(`${panelType}_token`, userData.token);
+      localStorage.setItem(`${panelType}_user`, JSON.stringify(userData.user));
+      onLogin(userData);
     } catch (err: any) {
-      setError('Error de conexión. Verifique su red.');
+      console.error('Error de autenticación:', err);
+      setError(err.message || 'Error de conexión. Verifique su red.');
     } finally {
       setIsLoading(false);
     }
