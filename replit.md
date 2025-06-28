@@ -207,6 +207,38 @@ VecinoXpress is a comprehensive electronic signature system for legal documents 
   - Rate limiting específico para operaciones administrativas
   - Logs de auditoría para todas las acciones administrativas
 
+### Sistema de Precios Dinámicos y Comisiones - Junio 28, 2025
+- ✅ **Precios Dinámicos GPS:**
+  - Precios varían según ubicación GPS del usuario
+  - Descuento automático del 20% respecto a notarías locales
+  - Ajustes por competencia y nivel económico regional
+  - 6 regiones de Chile con precios diferenciados
+  - API `/api/pricing/calculate` para cálculo en tiempo real
+- ✅ **Sistema de Comisiones del 12%:**
+  - Cálculo automático semanal de comisiones para terminales POS
+  - Estados de cuenta automatizados con IA
+  - Análisis de rendimiento y comparación semana anterior
+  - PDF automático con insights y recomendaciones
+  - API `/api/commissions/weekly` para consultas
+- ✅ **IA Agente Sociólogo:**
+  - Análisis demográfico automatizado por región
+  - Recomendaciones de mejores sectores para expansión
+  - Score inteligente de oportunidades de mercado
+  - Integración con Perplexity AI para insights avanzados
+  - Panel `/api/sociology/sector-analysis` para administradores
+- ✅ **Panel Supervisor Completo:**
+  - Control de activación/desactivación de terminales POS
+  - Modificación de valores de documentos en tiempo real
+  - Gestión de certificadores y permisos
+  - Monitor de video verificación para atención híbrida
+  - Dashboard con métricas de rendimiento
+- ✅ **Análisis Cultural Inteligente:**
+  - Detección automática de culturas indígenas según GPS
+  - Sugerencias de traducción a lenguas originarias
+  - Cumplimiento Convenio 169 OIT y Ley Indígena 19.253
+  - Recomendaciones legales específicas por territorio
+  - API `/api/cultural/analyze` con insights locales
+
 ### Arquitectura Técnica Implementada
 - **Frontend**: React 18 + TypeScript + Tailwind CSS + shadcn/ui
 - **Backend**: Node.js + Express + Drizzle ORM
