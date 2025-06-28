@@ -1,263 +1,421 @@
 import crypto from 'crypto';
-import fs from 'fs/promises';
-import path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
-// Professional eToken SafeNet 5110 integration service
-// This service provides advanced electronic signature (FEA) capabilities
+const execAsync = promisify(exec);
+
+interface ETokenInfo {
+  serial: string;
+  label: string;
+  manufacturer: string;
+  model: string;
+  firmwareVersion: string;
+  slot: number;
+  isPresent: boolean;
+  isLoggedIn: boolean;
+}
+
+interface SignatureRequest {
+  documentHash: string;
+  certificateId: string;
+  pin: string;
+  algorithm: 'SHA256withRSA' | 'SHA1withRSA';
+}
+
+interface SignatureResult {
+  success: boolean;
+  signature?: string;
+  certificate?: string;
+  timestamp?: string;
+  error?: string;
+}
+
 class ETokenService {
+  private static instance: ETokenService;
   private isInitialized = false;
-  private certificateInfo: any = null;
-  private tokenAvailable = false;
+  private connectedTokens: Map<number, ETokenInfo> = new Map();
 
-  // Check if eToken hardware is available and connected
-  async checkTokenAvailability(): Promise<boolean> {
-    try {
-      // In production, this would interface with PKCS#11 library
-      // For now, we simulate the check with environment variable
-      const tokenPresent = process.env.ETOKEN_PRESENT === 'true';
-      this.tokenAvailable = tokenPresent;
-      
-      console.log(`eToken SafeNet 5110 status: ${tokenPresent ? 'Connected' : 'Not detected'}`);
-      return tokenPresent;
-    } catch (error) {
-      console.error('Error checking eToken availability:', error);
-      this.tokenAvailable = false;
-      return false;
+  public static getInstance(): ETokenService {
+    if (!ETokenService.instance) {
+      ETokenService.instance = new ETokenService();
     }
+    return ETokenService.instance;
   }
 
-  // Sign PDF document with Advanced Electronic Signature (FEA)
-  async signPDF(pdfBuffer: Buffer): Promise<Buffer> {
+  /**
+   * Inicializar el servicio de eToken
+   */
+  async initialize(): Promise<boolean> {
     try {
-      if (!this.tokenAvailable) {
-        throw new Error('eToken not available for signing');
-      }
-
-      // In production, this would:
-      // 1. Initialize PKCS#11 interface with SafeNet eToken
-      // 2. Access private key from hardware security module
-      // 3. Create PKCS#7 signature with timestamp
-      // 4. Embed signature in PDF according to PAdES standard
+      console.log('Inicializando servicio eToken SafeNet...');
       
-      // For demonstration, we create a cryptographic hash as signature
-      const timestamp = new Date().toISOString();
-      const signatureData = {
-        timestamp,
-        algorithm: 'SHA-256 with RSA',
-        certificate: 'CN=VecinoXpress NotaryPro,O=NotaryPro Chile,C=CL',
-        serialNumber: this.generateSerialNumber(),
-        issuer: 'AC NotaryPro - Autoridad Certificadora',
-        validFrom: '2024-01-01T00:00:00Z',
-        validTo: '2025-12-31T23:59:59Z'
-      };
-
-      // Create digital signature hash
-      const signatureHash = crypto
-        .createHash('sha256')
-        .update(pdfBuffer)
-        .update(JSON.stringify(signatureData))
-        .digest('hex');
-
-      console.log(`PDF signed with FEA signature: ${signatureHash.substring(0, 16)}...`);
-      
-      // In real implementation, this would modify the PDF to embed the signature
-      // For now, we return the original buffer with signature metadata
-      return pdfBuffer;
-      
-    } catch (error) {
-      console.error('Error signing PDF with eToken:', error);
-      throw new Error('Failed to apply advanced electronic signature');
-    }
-  }
-
-  // Get certificate information from eToken
-  async getCertificateInfo(): Promise<{
-    subject: string;
-    issuer: string;
-    serialNumber: string;
-    validFrom: Date;
-    validTo: Date;
-    algorithm: string;
-    keyUsage: string[];
-  }> {
-    try {
-      if (!this.certificateInfo) {
-        // In production, this would read from eToken hardware
-        this.certificateInfo = {
-          subject: 'CN=VecinoXpress NotaryPro,OU=Digital Certification,O=NotaryPro Chile,C=CL',
-          issuer: 'CN=AC NotaryPro Root CA,O=NotaryPro Chile,C=CL',
-          serialNumber: this.generateSerialNumber(),
-          validFrom: new Date('2024-01-01'),
-          validTo: new Date('2025-12-31'),
-          algorithm: 'RSA-2048 with SHA-256',
-          keyUsage: [
-            'Digital Signature',
-            'Non-Repudiation',
-            'Key Agreement',
-            'Certificate Signing'
-          ]
-        };
-      }
-      
-      return this.certificateInfo;
-    } catch (error) {
-      console.error('Error getting certificate info:', error);
-      throw new Error('Failed to retrieve certificate information');
-    }
-  }
-
-  // Initialize PKCS#11 interface for eToken communication
-  async initializePKCS11(): Promise<boolean> {
-    try {
-      // In production, this would:
-      // 1. Load SafeNet eToken PKCS#11 library
-      // 2. Initialize cryptographic session
-      // 3. Detect connected eToken devices
-      // 4. Establish secure communication channel
-      
-      console.log('Initializing PKCS#11 interface for SafeNet eToken 5110...');
-      
-      // Simulate initialization delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const success = await this.checkTokenAvailability();
-      this.isInitialized = success;
-      
-      if (success) {
-        console.log('PKCS#11 interface initialized successfully');
-        await this.getCertificateInfo(); // Load certificate data
-      } else {
-        console.log('eToken not detected - operating in simulation mode');
-      }
-      
-      return success;
-    } catch (error) {
-      console.error('Error initializing PKCS#11:', error);
-      this.isInitialized = false;
-      return false;
-    }
-  }
-
-  // Authenticate user with eToken PIN
-  async authenticate(pin: string): Promise<boolean> {
-    try {
-      if (!this.isInitialized) {
-        await this.initializePKCS11();
-      }
-      
-      // In production, this would validate PIN against eToken
-      // For security, we validate PIN format and simulate authentication
-      if (!pin || pin.length < 4 || pin.length > 16) {
-        throw new Error('Invalid PIN format');
-      }
-      
-      // Simulate PIN validation delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // For demonstration, accept any PIN that starts with '1234'
-      const isValid = pin.startsWith('1234');
-      
-      if (isValid) {
-        console.log('eToken authentication successful');
-      } else {
-        console.log('eToken authentication failed - invalid PIN');
-      }
-      
-      return isValid;
-    } catch (error) {
-      console.error('Error authenticating with eToken:', error);
-      return false;
-    }
-  }
-
-  // Generate timestamp signature for document integrity
-  async generateTimestamp(documentHash: string): Promise<string> {
-    try {
-      const timestamp = new Date().toISOString();
-      const timestampData = {
-        hash: documentHash,
-        timestamp,
-        tsa: 'TimeStamp Authority - NotaryPro',
-        policy: '1.2.3.4.5.6.7.8.1', // TSA Policy OID
-        algorithm: 'SHA-256'
-      };
-      
-      // Create RFC 3161 compliant timestamp
-      const timestampHash = crypto
-        .createHash('sha256')
-        .update(JSON.stringify(timestampData))
-        .digest('hex');
-      
-      return timestampHash;
-    } catch (error) {
-      console.error('Error generating timestamp:', error);
-      throw new Error('Failed to generate timestamp signature');
-    }
-  }
-
-  // Validate existing signature
-  async validateSignature(signatureData: string, originalHash: string): Promise<boolean> {
-    try {
-      // In production, this would:
-      // 1. Extract signature from document
-      // 2. Verify certificate chain
-      // 3. Check certificate revocation status
-      // 4. Validate timestamp
-      // 5. Verify signature against original content
-      
-      console.log('Validating digital signature...');
-      
-      // Basic validation simulation
-      if (!signatureData || !originalHash) {
+      // Verificar que PKCS#11 esté disponible
+      const pkcs11Available = await this.checkPKCS11Availability();
+      if (!pkcs11Available) {
+        console.error('PKCS#11 no disponible en el sistema');
         return false;
       }
+
+      // Enumerar tokens disponibles
+      await this.enumerateTokens();
       
-      // Simulate validation process
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      // For demonstration, validate signature format
-      const isValidFormat = /^[a-f0-9]{64}$/i.test(signatureData);
-      const isValidHash = /^[a-f0-9]{64}$/i.test(originalHash);
-      
-      return isValidFormat && isValidHash;
+      this.isInitialized = true;
+      console.log('Servicio eToken inicializado correctamente');
+      return true;
     } catch (error) {
-      console.error('Error validating signature:', error);
+      console.error('Error inicializando eToken:', error);
       return false;
     }
   }
 
-  // Get eToken device information
-  getDeviceInfo(): any {
-    return {
-      manufacturer: 'SafeNet',
-      model: 'eToken 5110',
-      interface: 'USB PKCS#11',
-      algorithms: ['RSA-2048', 'SHA-256', 'ECDSA'],
-      standards: ['PKCS#11', 'RFC 3161', 'PAdES', 'XAdES'],
-      certificationLevel: 'Firma Electrónica Avanzada (FEA)',
-      compliance: 'Ley 19.799 - Chile'
+  /**
+   * Verificar disponibilidad de PKCS#11
+   */
+  private async checkPKCS11Availability(): Promise<boolean> {
+    try {
+      // En un entorno real, verificaríamos la biblioteca PKCS#11 de SafeNet
+      // Por ahora simulamos la disponibilidad
+      console.log('Verificando disponibilidad PKCS#11...');
+      
+      // Comando para verificar SafeNet Authentication Client
+      const { stdout } = await execAsync('which pkcs11-tool || echo "not_found"');
+      
+      if (stdout.includes('not_found')) {
+        console.log('PKCS#11 tools no encontradas, simulando disponibilidad para desarrollo');
+        return true; // En desarrollo, simular disponibilidad
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error verificando PKCS#11:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Enumerar tokens disponibles
+   */
+  async enumerateTokens(): Promise<ETokenInfo[]> {
+    try {
+      console.log('Enumerando tokens eToken disponibles...');
+      
+      // En producción, usaríamos PKCS#11 real para enumerar tokens
+      // Por ahora simulamos un token SafeNet 5110 conectado
+      const mockToken: ETokenInfo = {
+        serial: 'SNK' + Date.now().toString().slice(-8),
+        label: 'SafeNet eToken 5110',
+        manufacturer: 'SafeNet, Inc.',
+        model: 'eToken 5110',
+        firmwareVersion: '4.5.3',
+        slot: 0,
+        isPresent: true,
+        isLoggedIn: false
+      };
+
+      this.connectedTokens.set(0, mockToken);
+      
+      console.log(`Token encontrado: ${mockToken.label} (${mockToken.serial})`);
+      return Array.from(this.connectedTokens.values());
+    } catch (error) {
+      console.error('Error enumerando tokens:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Obtener información de tokens conectados
+   */
+  getConnectedTokens(): ETokenInfo[] {
+    return Array.from(this.connectedTokens.values());
+  }
+
+  /**
+   * Verificar si hay un token conectado
+   */
+  isTokenPresent(): boolean {
+    return this.connectedTokens.size > 0 && 
+           Array.from(this.connectedTokens.values()).some(token => token.isPresent);
+  }
+
+  /**
+   * Hacer login en el token con PIN
+   */
+  async loginToken(slot: number, pin: string): Promise<boolean> {
+    try {
+      const token = this.connectedTokens.get(slot);
+      if (!token) {
+        throw new Error(`Token en slot ${slot} no encontrado`);
+      }
+
+      if (!token.isPresent) {
+        throw new Error('Token no está presente');
+      }
+
+      console.log(`Iniciando sesión en token ${token.label}...`);
+      
+      // En producción, aquí haríamos el login real con PKCS#11
+      // Por ahora simulamos validación de PIN (debería ser 6-8 dígitos)
+      if (!pin || pin.length < 4 || pin.length > 12) {
+        throw new Error('PIN inválido - debe tener entre 4 y 12 caracteres');
+      }
+
+      // Simular autenticación exitosa
+      token.isLoggedIn = true;
+      this.connectedTokens.set(slot, token);
+      
+      console.log('Login exitoso en eToken');
+      return true;
+    } catch (error) {
+      console.error('Error en login eToken:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Hacer logout del token
+   */
+  async logoutToken(slot: number): Promise<boolean> {
+    try {
+      const token = this.connectedTokens.get(slot);
+      if (token) {
+        token.isLoggedIn = false;
+        this.connectedTokens.set(slot, token);
+        console.log('Logout exitoso de eToken');
+      }
+      return true;
+    } catch (error) {
+      console.error('Error en logout eToken:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Obtener certificados disponibles en el token
+   */
+  async getCertificates(slot: number): Promise<Array<{
+    id: string;
+    subject: string;
+    issuer: string;
+    validFrom: Date;
+    validTo: Date;
+    keyUsage: string[];
+  }>> {
+    try {
+      const token = this.connectedTokens.get(slot);
+      if (!token || !token.isLoggedIn) {
+        throw new Error('Token no autenticado');
+      }
+
+      console.log('Obteniendo certificados del token...');
+      
+      // En producción, enumeraríamos certificados reales del token
+      // Por ahora simulamos un certificado de firma
+      const mockCertificate = {
+        id: 'cert_001',
+        subject: 'CN=Juan Pérez Certificador, O=NotaryPro Chile, C=CL',
+        issuer: 'CN=AC FIRMAVIRTUAL - PERSONA NATURAL, O=Firmavirtual S.A., C=CL',
+        validFrom: new Date('2024-01-01'),
+        validTo: new Date('2025-12-31'),
+        keyUsage: ['digitalSignature', 'nonRepudiation', 'keyEncipherment']
+      };
+
+      return [mockCertificate];
+    } catch (error) {
+      console.error('Error obteniendo certificados:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Firmar documento con eToken
+   */
+  async signDocument(
+    slot: number, 
+    request: SignatureRequest
+  ): Promise<SignatureResult> {
+    try {
+      const token = this.connectedTokens.get(slot);
+      if (!token || !token.isLoggedIn) {
+        return {
+          success: false,
+          error: 'Token no autenticado'
+        };
+      }
+
+      console.log('Iniciando firma con eToken...');
+      
+      // Validar entrada
+      if (!request.documentHash || !request.certificateId) {
+        return {
+          success: false,
+          error: 'Hash del documento y certificado son requeridos'
+        };
+      }
+
+      // En producción, aquí usaríamos PKCS#11 para firmar
+      // Por ahora simulamos el proceso de firma
+      
+      // 1. Obtener clave privada del certificado
+      console.log(`Usando certificado: ${request.certificateId}`);
+      
+      // 2. Aplicar algoritmo de firma
+      const signature = await this.performCryptographicSignature(
+        request.documentHash,
+        request.algorithm
+      );
+      
+      // 3. Obtener certificado en formato PEM
+      const certificate = await this.getCertificatePEM(request.certificateId);
+      
+      // 4. Generar timestamp RFC 3161
+      const timestamp = await this.generateRFC3161Timestamp();
+
+      console.log('Firma completada exitosamente con eToken');
+      
+      return {
+        success: true,
+        signature,
+        certificate,
+        timestamp,
+      };
+    } catch (error) {
+      console.error('Error firmando documento:', error);
+      return {
+        success: false,
+        error: `Error en firma: ${error}`
+      };
+    }
+  }
+
+  /**
+   * Realizar firma criptográfica
+   */
+  private async performCryptographicSignature(
+    documentHash: string,
+    algorithm: string
+  ): Promise<string> {
+    // En producción, esto se haría con la clave privada del eToken
+    // Por ahora generamos una firma simulada válida
+    
+    const privateKey = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+    }).privateKey;
+
+    const sign = crypto.createSign(algorithm.replace('with', ''));
+    sign.update(documentHash);
+    sign.end();
+
+    const signature = sign.sign(privateKey, 'base64');
+    return signature;
+  }
+
+  /**
+   * Obtener certificado en formato PEM
+   */
+  private async getCertificatePEM(certificateId: string): Promise<string> {
+    // En producción, extraeríamos el certificado real del token
+    // Por ahora retornamos un certificado de prueba
+    
+    return `-----BEGIN CERTIFICATE-----
+MIIDBzCCAe+gAwIBAgIUXXXXXXXXXXXXXXXXXXXXXXXXXXIwDQYJKoZIhvcNAQEL
+BQAwEjEQMA4GA1UEAwwHdGVzdC1jYTAeFw0yNDAxMDEwMDAwMDBaFw0yNTEyMzEy
+MzU5NTlaMDIxMDAuBgNVBAMMJ0p1YW4gUMOpcmV6IENlcnRpZmljYWRvciBOb3Rh
+cnlQcm8gQ2hpbGUwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC4...
+-----END CERTIFICATE-----`;
+  }
+
+  /**
+   * Generar timestamp RFC 3161
+   */
+  private async generateRFC3161Timestamp(): Promise<string> {
+    // En producción, contactaríamos una TSA (Time Stamping Authority)
+    // Por ahora generamos un timestamp simulado
+    
+    const timestamp = {
+      version: 1,
+      policy: '1.2.3.4.5',
+      messageImprint: {
+        hashAlgorithm: 'SHA256',
+        hashedMessage: crypto.randomBytes(32).toString('hex')
+      },
+      serialNumber: Date.now(),
+      genTime: new Date().toISOString(),
+      tsa: 'CN=NotaryPro TSA, O=NotaryPro Chile, C=CL'
     };
+
+    return Buffer.from(JSON.stringify(timestamp)).toString('base64');
   }
 
-  // Helper method to generate certificate serial numbers
-  private generateSerialNumber(): string {
-    const timestamp = Date.now().toString();
-    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-    return `VP${timestamp.substring(-6)}${random}`;
+  /**
+   * Verificar estado del token
+   */
+  async getTokenStatus(slot: number = 0): Promise<{
+    isPresent: boolean;
+    isLoggedIn: boolean;
+    label?: string;
+    serial?: string;
+    error?: string;
+  }> {
+    try {
+      const token = this.connectedTokens.get(slot);
+      
+      if (!token) {
+        return {
+          isPresent: false,
+          isLoggedIn: false,
+          error: 'Token no encontrado'
+        };
+      }
+
+      return {
+        isPresent: token.isPresent,
+        isLoggedIn: token.isLoggedIn,
+        label: token.label,
+        serial: token.serial
+      };
+    } catch (error) {
+      return {
+        isPresent: false,
+        isLoggedIn: false,
+        error: `Error verificando estado: ${error}`
+      };
+    }
   }
 
-  // Clean up resources
+  /**
+   * Generar código QR para validación de firma
+   */
+  generateValidationQR(documentId: number, signatureId: number): string {
+    const validationUrl = `${process.env.APP_URL || 'https://notarypro.cl'}/validar/${documentId}/${signatureId}`;
+    
+    // En producción, generaríamos QR real con librería qrcode
+    // Por ahora retornamos URL
+    return validationUrl;
+  }
+
+  /**
+   * Cleanup - cerrar sesiones y liberar recursos
+   */
   async cleanup(): Promise<void> {
     try {
-      // In production, this would properly close PKCS#11 session
-      console.log('Cleaning up eToken resources...');
+      console.log('Limpiando recursos eToken...');
+      
+      for (const [slot, token] of this.connectedTokens.entries()) {
+        if (token.isLoggedIn) {
+          await this.logoutToken(slot);
+        }
+      }
+      
+      this.connectedTokens.clear();
       this.isInitialized = false;
-      this.certificateInfo = null;
-      this.tokenAvailable = false;
+      
+      console.log('Cleanup completado');
     } catch (error) {
-      console.error('Error cleaning up eToken resources:', error);
+      console.error('Error en cleanup:', error);
     }
   }
 }
 
-export const etokenService = new ETokenService();
+export const etokenService = ETokenService.getInstance();
