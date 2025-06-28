@@ -1,0 +1,432 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(20, 14.3%, 4.1%);
+  --muted: hsl(60, 4.8%, 95.9%);
+  --muted-foreground: hsl(25, 5.3%, 44.7%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(20, 14.3%, 4.1%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(20, 14.3%, 4.1%);
+  --border: hsl(20, 5.9%, 90%);
+  --input: hsl(20, 5.9%, 90%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(60, 4.8%, 95.9%);
+  --secondary-foreground: hsl(24, 9.8%, 10%);
+  --accent: hsl(60, 4.8%, 95.9%);
+  --accent-foreground: hsl(24, 9.8%, 10%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(20, 14.3%, 4.1%);
+  --radius: 0.5rem;
+  
+  /* VecinoXpress Colors */
+  --vecino-blue: hsl(219, 84%, 35%);
+  --vecino-blue-foreground: hsl(0, 0%, 100%);
+  --vecino-blue-light: hsl(219, 84%, 90%);
+  
+  /* NotaryPro Colors */
+  --notary-red: hsl(356, 84%, 47%);
+  --notary-red-foreground: hsl(0, 0%, 100%);
+  --notary-red-light: hsl(356, 84%, 90%);
+  
+  /* Status Colors */
+  --success: hsl(142, 76%, 36%);
+  --success-foreground: hsl(0, 0%, 100%);
+  --warning: hsl(38, 92%, 50%);
+  --warning-foreground: hsl(0, 0%, 100%);
+  --error: hsl(0, 84%, 60%);
+  --error-foreground: hsl(0, 0%, 100%);
+  
+  /* Chart Colors */
+  --chart-1: hsl(219, 84%, 35%);
+  --chart-2: hsl(356, 84%, 47%);
+  --chart-3: hsl(142, 76%, 36%);
+  --chart-4: hsl(38, 92%, 50%);
+  --chart-5: hsl(270, 95%, 75%);
+}
+
+.dark {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(240, 4.9%, 83.9%);
+  --radius: 0.5rem;
+  
+  /* VecinoXpress Colors - Dark Mode */
+  --vecino-blue: hsl(219, 84%, 45%);
+  --vecino-blue-foreground: hsl(0, 0%, 100%);
+  --vecino-blue-light: hsl(219, 84%, 20%);
+  
+  /* NotaryPro Colors - Dark Mode */
+  --notary-red: hsl(356, 84%, 57%);
+  --notary-red-foreground: hsl(0, 0%, 100%);
+  --notary-red-light: hsl(356, 84%, 20%);
+  
+  /* Status Colors - Dark Mode */
+  --success: hsl(142, 76%, 46%);
+  --success-foreground: hsl(0, 0%, 100%);
+  --warning: hsl(38, 92%, 60%);
+  --warning-foreground: hsl(0, 0%, 100%);
+  --error: hsl(0, 84%, 70%);
+  --error-foreground: hsl(0, 0%, 100%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  /* Touch-friendly styles for POS interface */
+  .pos-interface {
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  
+  .pos-interface button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Signature canvas styles */
+  .signature-canvas {
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  
+  /* Camera viewport styles */
+  .camera-viewport {
+    transform: scaleX(-1); /* Mirror effect for front camera */
+  }
+}
+
+@layer components {
+  /* VecinoXpress Component Styles */
+  .vecino-button {
+    @apply bg-[hsl(var(--vecino-blue))] text-[hsl(var(--vecino-blue-foreground))] hover:bg-[hsl(var(--vecino-blue))]/90;
+  }
+  
+  .vecino-badge {
+    @apply bg-[hsl(var(--vecino-blue-light))] text-[hsl(var(--vecino-blue))] border-[hsl(var(--vecino-blue))];
+  }
+  
+  /* NotaryPro Component Styles */
+  .notary-button {
+    @apply bg-[hsl(var(--notary-red))] text-[hsl(var(--notary-red-foreground))] hover:bg-[hsl(var(--notary-red))]/90;
+  }
+  
+  .notary-badge {
+    @apply bg-[hsl(var(--notary-red-light))] text-[hsl(var(--notary-red))] border-[hsl(var(--notary-red))];
+  }
+  
+  /* Status Badges */
+  .status-pending {
+    @apply bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))];
+  }
+  
+  .status-signed {
+    @apply bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))];
+  }
+  
+  .status-rejected {
+    @apply bg-[hsl(var(--error))] text-[hsl(var(--error-foreground))];
+  }
+  
+  /* Progress Steps */
+  .step-active {
+    @apply bg-[hsl(var(--vecino-blue))] text-[hsl(var(--vecino-blue-foreground))];
+  }
+  
+  .step-completed {
+    @apply bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))];
+  }
+  
+  .step-inactive {
+    @apply bg-gray-300 text-gray-600;
+  }
+  
+  /* Document Cards */
+  .document-card {
+    @apply border-2 border-gray-200 rounded-lg p-4 transition-all duration-200 hover:border-[hsl(var(--vecino-blue))] hover:bg-[hsl(var(--vecino-blue-light))];
+  }
+  
+  .document-card:hover {
+    @apply shadow-md;
+  }
+  
+  /* Evidence Display */
+  .evidence-photo {
+    @apply w-32 h-32 rounded-lg border object-cover shadow-sm;
+  }
+  
+  .evidence-signature {
+    @apply w-full h-24 border rounded-lg bg-white object-contain shadow-sm;
+  }
+  
+  /* GPS Coordinates */
+  .gps-coordinate {
+    @apply font-mono text-xs bg-gray-100 px-2 py-1 rounded;
+  }
+  
+  /* Modal Overlays */
+  .modal-overlay {
+    @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50;
+  }
+  
+  /* Loading States */
+  .loading-skeleton {
+    @apply animate-pulse bg-gray-200 rounded;
+  }
+  
+  /* Validation States */
+  .validation-success {
+    @apply p-6 bg-[hsl(var(--success))]/10 border border-[hsl(var(--success))]/20 rounded-lg;
+  }
+  
+  .validation-error {
+    @apply p-6 bg-[hsl(var(--error))]/10 border border-[hsl(var(--error))]/20 rounded-lg;
+  }
+  
+  /* Chart Components */
+  .chart-container {
+    @apply bg-white rounded-lg shadow-sm p-6;
+  }
+  
+  .progress-bar {
+    @apply w-full bg-gray-200 rounded-full h-2;
+  }
+  
+  .progress-fill {
+    @apply h-2 rounded-full transition-all duration-500;
+  }
+  
+  /* Table Styles */
+  .data-table {
+    @apply min-w-full divide-y divide-gray-200;
+  }
+  
+  .data-table thead {
+    @apply bg-gray-50;
+  }
+  
+  .data-table th {
+    @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+  }
+  
+  .data-table td {
+    @apply px-6 py-4 whitespace-nowrap text-sm;
+  }
+  
+  .data-table tbody tr:hover {
+    @apply bg-gray-50;
+  }
+  
+  /* Form Components */
+  .form-input {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[hsl(var(--vecino-blue))] focus:border-transparent;
+  }
+  
+  .form-label {
+    @apply block text-sm font-medium text-gray-700 mb-2;
+  }
+  
+  /* Navigation Tabs */
+  .nav-tab {
+    @apply whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors;
+  }
+  
+  .nav-tab.active {
+    @apply border-[hsl(var(--vecino-blue))] text-[hsl(var(--vecino-blue))];
+  }
+  
+  .nav-tab.inactive {
+    @apply border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300;
+  }
+  
+  /* QR Code Display */
+  .qr-code-container {
+    @apply border rounded-lg p-4 bg-white text-center;
+  }
+  
+  /* Document Preview */
+  .document-preview {
+    @apply border rounded-lg bg-gray-50 p-6 font-serif text-sm leading-relaxed;
+  }
+  
+  /* Legal Notice */
+  .legal-notice {
+    @apply text-xs text-gray-500 leading-relaxed;
+  }
+  
+  /* Audit Trail */
+  .audit-entry {
+    @apply flex items-start space-x-3 pb-4;
+  }
+  
+  .audit-icon {
+    @apply h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-white;
+  }
+  
+  /* Mobile Responsive */
+  @media (max-width: 640px) {
+    .pos-interface {
+      @apply px-2;
+    }
+    
+    .document-card {
+      @apply p-3;
+    }
+    
+    .modal-overlay {
+      @apply p-4;
+    }
+  }
+}
+
+@layer utilities {
+  /* Corporate Colors */
+  .text-vecino-blue {
+    color: hsl(var(--vecino-blue));
+  }
+  
+  .bg-vecino-blue {
+    background-color: hsl(var(--vecino-blue));
+  }
+  
+  .border-vecino-blue {
+    border-color: hsl(var(--vecino-blue));
+  }
+  
+  .text-notary-red {
+    color: hsl(var(--notary-red));
+  }
+  
+  .bg-notary-red {
+    background-color: hsl(var(--notary-red));
+  }
+  
+  .border-notary-red {
+    border-color: hsl(var(--notary-red));
+  }
+  
+  /* Touch Utilities */
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+  
+  .no-select {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  
+  /* Animation Utilities */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes slideUp {
+    from { 
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to { 
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Signature Utilities */
+  .signature-pad {
+    cursor: crosshair;
+    touch-action: none;
+  }
+  
+  /* Camera Utilities */
+  .camera-mirror {
+    transform: scaleX(-1);
+  }
+  
+  /* Loading Utilities */
+  .pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  /* Security Indicators */
+  .security-indicator {
+    @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium;
+  }
+  
+  .security-ssl {
+    @apply bg-green-100 text-green-800;
+  }
+  
+  .security-fea {
+    @apply bg-blue-100 text-blue-800;
+  }
+  
+  /* Document Status Utilities */
+  .status-dot {
+    @apply inline-block w-2 h-2 rounded-full mr-2;
+  }
+  
+  .status-dot.pending {
+    @apply bg-yellow-500;
+  }
+  
+  .status-dot.signed {
+    @apply bg-green-500;
+  }
+  
+  .status-dot.rejected {
+    @apply bg-red-500;
+  }
+  
+  /* Print Styles */
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    
+    .document-preview {
+      @apply shadow-none border-none;
+    }
+  }
+}
