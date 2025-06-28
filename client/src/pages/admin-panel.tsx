@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AuthLogin } from "@/components/auth-login";
 import { 
   Users, 
   Monitor, 
@@ -56,11 +57,39 @@ type MonitoringData = {
 };
 
 export default function AdminPanel() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("users");
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [isCreatePosOpen, setIsCreatePosOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Check authentication on mount
+  useEffect(() => {
+    const token = localStorage.getItem('admin_token');
+    const user = localStorage.getItem('admin_user');
+    if (token && user) {
+      setIsAuthenticated(true);
+      setCurrentUser(JSON.parse(user));
+    }
+  }, []);
+
+  const handleLogin = (userData: any) => {
+    setIsAuthenticated(true);
+    setCurrentUser(userData.user);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_user');
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+  };
+
+  if (!isAuthenticated) {
+    return <AuthLogin panelType="admin" onLogin={handleLogin} />;
+  }
 
   // Fetch users
   const { data: users, isLoading: usersLoading } = useQuery({

@@ -63,11 +63,11 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Navigation} />
-      <Route path="/certificador" component={CertificadorPanel} />
-      <Route path="/pos" component={POSInterface} />
-      <Route path="/validation" component={ValidationInterface} />
+      <Route path="/certificador-panel" component={CertificadorPanel} />
+      <Route path="/pos-interface" component={POSInterface} />
+      <Route path="/validation-interface" component={ValidationInterface} />
       <Route path="/dashboard" component={Dashboard} />
-      <Route path="/admin" component={AdminPanel} />
+      <Route path="/admin-panel" component={AdminPanel} />
       <Route component={NotFound} />
     </Switch>
   );

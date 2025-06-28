@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { DocumentModal } from "@/components/document-modal";
+import { AuthLogin } from "@/components/auth-login";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Clock, 
@@ -35,10 +36,38 @@ type PendingDocument = {
 };
 
 export default function CertificadorPanel() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [selectedDocument, setSelectedDocument] = useState<PendingDocument | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Check authentication on mount
+  useEffect(() => {
+    const token = localStorage.getItem('certificador_token');
+    const user = localStorage.getItem('certificador_user');
+    if (token && user) {
+      setIsAuthenticated(true);
+      setCurrentUser(JSON.parse(user));
+    }
+  }, []);
+
+  const handleLogin = (userData: any) => {
+    setIsAuthenticated(true);
+    setCurrentUser(userData.user);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('certificador_token');
+    localStorage.removeItem('certificador_user');
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+  };
+
+  if (!isAuthenticated) {
+    return <AuthLogin panelType="certificador" onLogin={handleLogin} />;
+  }
 
   // Fetch pending documents
   const { data: pendingDocuments = [], isLoading } = useQuery({
