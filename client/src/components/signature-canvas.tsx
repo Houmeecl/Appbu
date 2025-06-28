@@ -5,11 +5,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PenTool, RotateCcw, Download, CheckCircle, AlertTriangle } from "lucide-react";
 
 type SignatureCanvasProps = {
-  onSignatureComplete: (signatureData: string) => void;
-  onClear: () => void;
+  onSignatureComplete?: (signatureData: string) => void;
+  onSave?: (signatureData: string) => void;
+  onClear?: () => void;
 };
 
-export function SignatureCanvas({ onSignatureComplete, onClear }: SignatureCanvasProps) {
+export function SignatureCanvas({ onSignatureComplete, onSave, onClear }: SignatureCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);

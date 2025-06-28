@@ -5,7 +5,7 @@ import { insertDocumentSchema, insertSignatureSchema, insertEvidenceSchema } fro
 import { z } from "zod";
 import { pdfService } from "./services/pdfService";
 import { qrService } from "./services/qrService";
-import { etokenService } from "./services/etokenService";
+import { eTokenService } from "./services/eTokenService";
 import { indigenousService } from "./services/indigenousService";
 import { perplexityService } from "./services/perplexityService";
 import { sociologyService } from "./services/sociologyService";
@@ -254,18 +254,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       data.clientName = sanitizeInput(data.clientName);
       data.clientRut = sanitizeInput(data.clientRut);
       
-      // Generate document number if not provided
-      if (!data.documentNumber) {
-        const year = new Date().getFullYear();
-        const sequence = Date.now().toString().slice(-6);
-        data.documentNumber = `DOC-${year}-${sequence}`;
-      }
+      // Generate document number
+      const year = new Date().getFullYear();
+      const sequence = Date.now().toString().slice(-6);
+      const documentNumber = `DOC-${year}-${sequence}`;
+      
+      // Create document object with generated fields
+      const documentData = {
+        ...data,
+        documentNumber,
+      };
       
       // Generate document hash for integrity
-      const documentHash = qrService.generateDocumentHash(data);
+      const documentHash = qrService.generateDocumentHash(documentData);
       
       const document = await storage.createDocument({
-        ...data,
+        ...documentData,
         hash: documentHash
       });
       
@@ -2036,6 +2040,71 @@ Proporciona recomendaciones prácticas y específicas.`;
     } catch (error: any) {
       console.error('Error firmando con eToken:', error);
       res.status(500).json({ error: 'Error procesando firma con eToken' });
+    }
+  });
+
+  // POS Commissions Endpoint
+  app.get('/api/pos/commissions', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const terminalId = req.headers['x-terminal-id'] as string;
+
+      // Calculate commissions for this POS terminal
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const startOfWeek = new Date(today.getTime() - (today.getDay() * 24 * 60 * 60 * 1000));
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+      // Simulate commission data (in production, this would query actual documents)
+      const commissionsData = {
+        today: Math.floor(Math.random() * 15000), // Random commission for demo
+        thisWeek: Math.floor(Math.random() * 45000),
+        thisMonth: Math.floor(Math.random() * 180000),
+        documentsToday: Math.floor(Math.random() * 25),
+        totalValueToday: Math.floor(Math.random() * 125000)
+      };
+
+      res.json(commissionsData);
+    } catch (error) {
+      console.error('Error fetching commissions:', error);
+      res.status(500).json({ message: 'Error fetching commission data' });
+    }
+  });
+
+  // POS Recent Documents Endpoint  
+  app.get('/api/pos/recent-documents', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const terminalId = req.headers['x-terminal-id'] as string;
+
+      // Get recent documents for this terminal (simulated for demo)
+      const recentDocs = [
+        {
+          id: 1,
+          documentType: "Declaración Jurada Simple",
+          clientName: "Juan Pérez",
+          price: 5000,
+          createdAt: new Date(Date.now() - 1000 * 60 * 30) // 30 min ago
+        },
+        {
+          id: 2,
+          documentType: "Autorización de Viaje",
+          clientName: "María González",
+          price: 8000,
+          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2) // 2 hours ago
+        },
+        {
+          id: 3,
+          documentType: "Carta Poder",
+          clientName: "Carlos Silva",
+          price: 12000,
+          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 4) // 4 hours ago
+        }
+      ];
+
+      res.json(recentDocs);
+    } catch (error) {
+      console.error('Error fetching recent documents:', error);
+      res.status(500).json({ message: 'Error fetching recent documents' });
     }
   });
 

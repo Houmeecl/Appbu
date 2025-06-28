@@ -6,10 +6,11 @@ import { Camera, RotateCcw, Download, CheckCircle, AlertCircle } from "lucide-re
 
 type CameraCaptureProps = {
   onCapture: (photoData: string) => void;
-  onError: (error: string) => void;
+  onError?: (error: string) => void;
+  className?: string;
 };
 
-export function CameraCapture({ onCapture, onError }: CameraCaptureProps) {
+export function CameraCapture({ onCapture, onError, className }: CameraCaptureProps) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);

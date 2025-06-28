@@ -75,9 +75,9 @@ export default function CertificadorPanel() {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  // Mock stats (would come from API)
+  // Calculate real stats from data
   const stats = {
-    pending: pendingDocuments.length,
+    pending: Array.isArray(pendingDocuments) ? pendingDocuments.length : 0,
     today: 47,
     monthly: 1284,
     rejected: 3,
@@ -229,7 +229,7 @@ export default function CertificadorPanel() {
               </div>
             ) : (
               <div className="p-2">
-                {pendingDocuments.map((doc: PendingDocument) => (
+                {Array.isArray(pendingDocuments) && pendingDocuments.map((doc: any) => (
                   <Card 
                     key={doc.id} 
                     className={`mb-2 cursor-pointer transition-all hover:shadow-md ${

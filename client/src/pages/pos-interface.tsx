@@ -11,7 +11,7 @@ import { SignatureCanvas } from "@/components/signature-canvas";
 import { AiDocumentSearch } from "@/components/ai-document-search";
 import IdentityVerification from "@/components/identity-verification";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, FileText, Plus, Shield } from "lucide-react";
+import { Bot, FileText, Plus, Shield, DollarSign, TrendingUp, Calendar, BarChart3 } from "lucide-react";
 
 type DocumentType = {
   id: number;
@@ -36,6 +36,172 @@ export default function POSInterface() {
   const { location, error: locationError } = useGeolocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Commission Panel Component
+  const CommissionsPanel = () => {
+    // Fetch commission data for this POS terminal
+    const { data: commissionData, isLoading: commissionsLoading } = useQuery({
+      queryKey: ["/api/pos/commissions"],
+    });
+
+    // Fetch recent documents processed by this terminal
+    const { data: recentDocuments, isLoading: documentsLoading } = useQuery({
+      queryKey: ["/api/pos/recent-documents"],
+    });
+
+    return (
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg">
+          <h2 className="text-xl font-bold mb-2">💰 Mis Comisiones</h2>
+          <p className="text-green-100">Ganas 12% de comisión por cada documento procesado</p>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <DollarSign className="h-6 w-6 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Comisiones Hoy</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    ${commissionsLoading ? "..." : commissionData?.today || "0"}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <TrendingUp className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Esta Semana</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    ${commissionsLoading ? "..." : commissionData?.thisWeek || "0"}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Calendar className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Este Mes</p>
+                  <p className="text-2xl font-bold text-purple-600">
+                    ${commissionsLoading ? "..." : commissionData?.thisMonth || "0"}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Detailed Breakdown */}
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Desglose de Comisiones
+              </h3>
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                Tasa: 12%
+              </Badge>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                <span className="text-sm text-gray-600">Documentos procesados hoy:</span>
+                <span className="font-semibold">
+                  {commissionsLoading ? "..." : commissionData?.documentsToday || "0"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                <span className="text-sm text-gray-600">Valor total generado hoy:</span>
+                <span className="font-semibold">
+                  ${commissionsLoading ? "..." : commissionData?.totalValueToday || "0"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                <span className="text-sm text-gray-600">Tu comisión (12%):</span>
+                <span className="font-bold text-green-600">
+                  ${commissionsLoading ? "..." : commissionData?.today || "0"}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent Documents */}
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Documentos Recientes
+            </h3>
+            
+            {documentsLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="animate-pulse bg-gray-200 h-16 rounded"></div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentDocuments?.slice(0, 5).map((doc: any, index: number) => (
+                  <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium">{doc.documentType || "Documento Legal"}</p>
+                      <p className="text-sm text-gray-600">{doc.clientName || "Cliente"}</p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(doc.createdAt).toLocaleDateString('es-CL')}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold">${doc.price || "5,000"}</p>
+                      <p className="text-sm text-green-600">
+                        +${Math.round((doc.price || 5000) * 0.12)} comisión
+                      </p>
+                    </div>
+                  </div>
+                )) || (
+                  <div className="text-center py-8 text-gray-500">
+                    <FileText className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                    <p>No hay documentos procesados aún</p>
+                    <p className="text-sm">¡Comienza a procesar documentos para ganar comisiones!</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Commission Info */}
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="p-6">
+            <h3 className="text-lg font-semibold text-blue-800 mb-3">💡 Información sobre Comisiones</h3>
+            <div className="space-y-2 text-sm text-blue-700">
+              <p>• Ganas 12% de comisión por cada documento procesado exitosamente</p>
+              <p>• Las comisiones se calculan en tiempo real</p>
+              <p>• Los pagos se realizan semanalmente los días viernes</p>
+              <p>• Consulta tu estado de cuenta en el panel de administración</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
 
   // Fetch document types
   const { data: documentTypes = [], isLoading } = useQuery({
@@ -360,7 +526,7 @@ export default function POSInterface() {
       {/* Main Content with Tabs */}
       <div className="p-4">
         <Tabs defaultValue="documents" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger value="documents" className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
               Crear Documento
@@ -368,6 +534,10 @@ export default function POSInterface() {
             <TabsTrigger value="ai-search" className="flex items-center gap-2">
               <Bot className="h-4 w-4" />
               Agente IA
+            </TabsTrigger>
+            <TabsTrigger value="commissions" className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Mis Comisiones
             </TabsTrigger>
           </TabsList>
           
@@ -379,6 +549,10 @@ export default function POSInterface() {
           
           <TabsContent value="ai-search">
             <AiDocumentSearch />
+          </TabsContent>
+          
+          <TabsContent value="commissions">
+            <CommissionsPanel />
           </TabsContent>
         </Tabs>
       </div>
