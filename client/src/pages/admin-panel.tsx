@@ -75,38 +75,22 @@ export default function AdminPanel() {
     }
   }, []);
 
-  const handleLogin = (userData: any) => {
-    setIsAuthenticated(true);
-    setCurrentUser(userData.user);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('admin_token');
-    localStorage.removeItem('admin_user');
-    setIsAuthenticated(false);
-    setCurrentUser(null);
-  };
-
-  if (!isAuthenticated) {
-    return <AuthLogin panelType="admin" onLogin={handleLogin} />;
-  }
-
-  // Fetch users
+  // Fetch users - always call hooks
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ["/api/admin/users"],
-    enabled: activeTab === "users"
+    enabled: isAuthenticated && activeTab === "users"
   });
 
-  // Fetch POS terminals
+  // Fetch POS terminals - always call hooks
   const { data: posTerminals, isLoading: posLoading } = useQuery({
     queryKey: ["/api/admin/pos-terminals"],
-    enabled: activeTab === "pos"
+    enabled: isAuthenticated && activeTab === "pos"
   });
 
-  // Fetch monitoring data
+  // Fetch monitoring data - always call hooks
   const { data: monitoring, isLoading: monitoringLoading } = useQuery({
     queryKey: ["/api/admin/monitoring"],
-    enabled: activeTab === "monitoring",
+    enabled: isAuthenticated && activeTab === "monitoring",
     refetchInterval: 30000 // Refresh every 30 seconds
   });
 
@@ -169,6 +153,22 @@ export default function AdminPanel() {
       });
     }
   });
+
+  const handleLogin = (userData: any) => {
+    setIsAuthenticated(true);
+    setCurrentUser(userData.user);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_user');
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+  };
+
+  if (!isAuthenticated) {
+    return <AuthLogin panelType="admin" onLogin={handleLogin} />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
