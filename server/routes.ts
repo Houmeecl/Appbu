@@ -11,6 +11,10 @@ import { perplexityService } from "./services/perplexityService";
 import { sociologyService } from "./services/sociologyService";
 import { dynamicPricingService } from "./services/dynamicPricingService";
 import { commissionService } from "./services/commissionService";
+import { posRegistrationService } from "./services/posRegistrationService";
+import { expressProcessService } from "./services/expressProcessService";
+import { tuuPaymentService } from "./services/tuuPaymentService";
+import { posAuthService } from "./services/posAuthService";
 import { authenticateToken, requireRole, generateToken, AuthRequest, rateLimit } from './middleware/auth';
 import { validateRUT, sanitizeInput } from './utils/validation';
 import bcrypt from 'bcryptjs';
@@ -1219,6 +1223,457 @@ Proporciona recomendaciones prácticas y específicas.`;
       }
     }
   );
+
+  // POS Device Registration and Management API
+  app.post('/api/pos/register', authenticateToken, requireRole(['admin']), async (req: AuthRequest, res: Response) => {
+    try {
+      const result = await posRegistrationService.registerNewPOS(req.body);
+      res.status(201).json(result);
+    } catch (error: any) {
+      console.error('Error registering POS device:', error);
+      res.status(400).json({ 
+        error: 'Error al registrar dispositivo POS',
+        details: error.message 
+      });
+    }
+  });
+
+  // POS Device Authentication
+  app.post('/api/pos/authenticate', rateLimit(10, 60000), async (req: Request, res: Response) => {
+    try {
+      const { imei, accessKey, secretKey } = req.body;
+      
+      if (!imei || !accessKey || !secretKey) {
+        return res.status(400).json({ 
+          error: 'IMEI, accessKey y secretKey son requeridos' 
+        });
+      }
+
+      const result = await posRegistrationService.authenticatePOS(imei, accessKey, secretKey);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error authenticating POS:', error);
+      res.status(401).json({ 
+        error: 'Error de autenticación POS',
+        details: error.message 
+      });
+    }
+  });
+
+  // POS Location Update
+  app.put('/api/pos/:imei/location', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const { imei } = req.params;
+      const locationData = req.body;
+      
+      const result = await posRegistrationService.updatePOSLocation(imei, locationData);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error updating POS location:', error);
+      res.status(400).json({ 
+        error: 'Error al actualizar ubicación POS',
+        details: error.message 
+      });
+    }
+  });
+
+  // POS Status Check
+  app.get('/api/pos/:imei/status', authenticateToken, requireRole(['admin', 'supervisor']), async (req: AuthRequest, res: Response) => {
+    try {
+      const { imei } = req.params;
+      const result = await posRegistrationService.getPOSStatus(imei);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error getting POS status:', error);
+      res.status(404).json({ 
+        error: 'Error al obtener estado del POS',
+        details: error.message 
+      });
+    }
+  });
+
+  // Express Process API
+  app.post('/api/express/initiate', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const result = await expressProcessService.initiateExpressProcess(req.body);
+      res.status(201).json(result);
+    } catch (error: any) {
+      console.error('Error initiating express process:', error);
+      res.status(400).json({ 
+        error: 'Error al iniciar proceso express',
+        details: error.message 
+      });
+    }
+  });
+
+  // Express Process Steps
+  app.post('/api/express/:processId/client-verification', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const { processId } = req.params;
+      const result = await expressProcessService.processClientVerification(processId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error in client verification:', error);
+      res.status(400).json({ 
+        error: 'Error en verificación de cliente',
+        details: error.message 
+      });
+    }
+  });
+
+  app.post('/api/express/:processId/document-selection', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const { processId } = req.params;
+      const result = await expressProcessService.processDocumentSelection(processId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error in document selection:', error);
+      res.status(400).json({ 
+        error: 'Error en selección de documento',
+        details: error.message 
+      });
+    }
+  });
+
+  app.post('/api/express/:processId/evidence-capture', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const { processId } = req.params;
+      const result = await expressProcessService.processEvidenceCapture(processId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error in evidence capture:', error);
+      res.status(400).json({ 
+        error: 'Error en captura de evidencia',
+        details: error.message 
+      });
+    }
+  });
+
+  app.post('/api/express/:processId/complete', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const { processId } = req.params;
+      const result = await expressProcessService.completeFinalValidation(processId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error completing express process:', error);
+      res.status(400).json({ 
+        error: 'Error al completar proceso express',
+        details: error.message 
+      });
+    }
+  });
+
+  // Express Process Stats
+  app.get('/api/express/stats', authenticateToken, requireRole(['admin', 'supervisor']), async (req: AuthRequest, res: Response) => {
+    try {
+      const stats = await expressProcessService.getProcessingStats();
+      res.json(stats);
+    } catch (error: any) {
+      console.error('Error getting express stats:', error);
+      res.status(500).json({ 
+        error: 'Error al obtener estadísticas express',
+        details: error.message 
+      });
+    }
+  });
+
+  // TUU Payment Integration API
+  app.post('/api/tuu/payment', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { imei, documentId, paymentData } = req.body;
+      
+      if (!imei || !documentId || !paymentData) {
+        return res.status(400).json({ 
+          error: 'IMEI, documentId y paymentData son requeridos' 
+        });
+      }
+
+      const result = await tuuPaymentService.processPayment(imei, documentId, paymentData);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error processing TUU payment:', error);
+      res.status(500).json({ 
+        error: 'Error procesando pago TUU',
+        details: error.message 
+      });
+    }
+  });
+
+  // TUU Device Registration
+  app.post('/api/tuu/register-device', authenticateToken, requireRole(['admin']), async (req: Request, res: Response) => {
+    try {
+      const { imei, model, partnerCredentials } = req.body;
+      
+      if (!imei || !model || !partnerCredentials) {
+        return res.status(400).json({ 
+          error: 'IMEI, model y partnerCredentials son requeridos' 
+        });
+      }
+
+      const device = await tuuPaymentService.registerTuuDevice(imei, model, partnerCredentials);
+      res.status(201).json(device);
+    } catch (error: any) {
+      console.error('Error registering TUU device:', error);
+      res.status(400).json({ 
+        error: 'Error registrando dispositivo TUU',
+        details: error.message 
+      });
+    }
+  });
+
+  // TUU Device Status Validation
+  app.get('/api/tuu/device/:imei/status', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { imei } = req.params;
+      const status = await tuuPaymentService.validateDeviceStatus(imei);
+      res.json(status);
+    } catch (error: any) {
+      console.error('Error validating TUU device:', error);
+      res.status(404).json({ 
+        error: 'Error validando dispositivo TUU',
+        details: error.message 
+      });
+    }
+  });
+
+  // TUU Configuration Sync
+  app.post('/api/tuu/device/:imei/sync', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { imei } = req.params;
+      await tuuPaymentService.syncDeviceConfiguration(imei);
+      res.json({ 
+        message: 'Configuración sincronizada exitosamente',
+        syncedAt: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('Error syncing TUU configuration:', error);
+      res.status(500).json({ 
+        error: 'Error sincronizando configuración TUU',
+        details: error.message 
+      });
+    }
+  });
+
+  // TUU Payment Stats
+  app.get('/api/tuu/stats', authenticateToken, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+    try {
+      const { imei, dateRange } = req.query;
+      const stats = await tuuPaymentService.getPaymentStats(
+        imei as string, 
+        dateRange ? JSON.parse(dateRange as string) : undefined
+      );
+      res.json(stats);
+    } catch (error: any) {
+      console.error('Error getting TUU stats:', error);
+      res.status(500).json({ 
+        error: 'Error obteniendo estadísticas TUU',
+        details: error.message 
+      });
+    }
+  });
+
+  // TUU Android Intent Generation
+  app.post('/api/tuu/generate-intent', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { paymentData, environment } = req.body;
+      
+      if (!paymentData) {
+        return res.status(400).json({ 
+          error: 'paymentData es requerido' 
+        });
+      }
+
+      const intentCode = tuuPaymentService.generateAndroidIntent(paymentData, environment);
+      const apkCode = tuuPaymentService.generateAPKIntegrationCode();
+      
+      res.json({ 
+        intentCode,
+        apkCode,
+        environment: environment || 'dev',
+        generatedAt: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('Error generating TUU intent:', error);
+      res.status(500).json({ 
+        error: 'Error generando Intent TUU',
+        details: error.message 
+      });
+    }
+  });
+
+  // TUU Response Processing
+  app.post('/api/tuu/process-response', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { intentData } = req.body;
+      
+      if (!intentData) {
+        return res.status(400).json({ 
+          error: 'intentData es requerido' 
+        });
+      }
+
+      const response = tuuPaymentService.processTuuResponse(intentData);
+      res.json(response);
+    } catch (error: any) {
+      console.error('Error processing TUU response:', error);
+      res.status(400).json({ 
+        error: 'Error procesando respuesta TUU',
+        details: error.message 
+      });
+    }
+  });
+
+  // POS Authentication API
+  app.post('/api/pos/login', rateLimit(5, 60000), async (req: Request, res: Response) => {
+    try {
+      const loginRequest = req.body;
+      
+      if (!loginRequest.terminalId || !loginRequest.accessKey) {
+        return res.status(400).json({ 
+          success: false,
+          error: 'Terminal ID y clave de acceso requeridos',
+          errorCode: 'MISSING_CREDENTIALS'
+        });
+      }
+
+      const result = await posAuthService.authenticatePOS(loginRequest);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(401).json(result);
+      }
+    } catch (error: any) {
+      console.error('Error in POS login:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Error interno del servidor',
+        errorCode: 'INTERNAL_ERROR'
+      });
+    }
+  });
+
+  // POS Token Renewal
+  app.post('/api/pos/renew-token', async (req: Request, res: Response) => {
+    try {
+      const { currentToken } = req.body;
+      
+      if (!currentToken) {
+        return res.status(400).json({ 
+          success: false,
+          error: 'Token actual requerido'
+        });
+      }
+
+      const result = await posAuthService.renewPOSToken(currentToken);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error renewing POS token:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Error renovando token'
+      });
+    }
+  });
+
+  // POS Terminal Registration (Admin only)
+  app.post('/api/pos/register-terminal', authenticateToken, requireRole(['admin']), async (req: Request, res: Response) => {
+    try {
+      const terminalData = req.body;
+      
+      const result = await posAuthService.registerNewTerminal(terminalData);
+      res.status(201).json(result);
+    } catch (error: any) {
+      console.error('Error registering terminal:', error);
+      res.status(400).json({ 
+        error: 'Error registrando terminal',
+        details: error.message 
+      });
+    }
+  });
+
+  // POS Token Validation
+  app.post('/api/pos/validate-token', async (req: Request, res: Response) => {
+    try {
+      const { token } = req.body;
+      
+      if (!token) {
+        return res.status(400).json({ 
+          isValid: false,
+          error: 'Token requerido'
+        });
+      }
+
+      const result = await posAuthService.validatePOSToken(token);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error validating POS token:', error);
+      res.status(500).json({ 
+        isValid: false,
+        error: 'Error validando token'
+      });
+    }
+  });
+
+  // POS Terminal Deactivation
+  app.post('/api/pos/deactivate/:terminalId', authenticateToken, requireRole(['admin']), async (req: Request, res: Response) => {
+    try {
+      const { terminalId } = req.params;
+      
+      const success = await posAuthService.deactivateTerminal(terminalId);
+      
+      if (success) {
+        res.json({ 
+          success: true,
+          message: 'Terminal desactivado exitosamente'
+        });
+      } else {
+        res.status(400).json({ 
+          success: false,
+          error: 'Error desactivando terminal'
+        });
+      }
+    } catch (error: any) {
+      console.error('Error deactivating terminal:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Error interno'
+      });
+    }
+  });
+
+  // POS Access Statistics
+  app.get('/api/pos/access-stats', authenticateToken, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+    try {
+      const { terminalId } = req.query;
+      
+      const stats = await posAuthService.getAccessStats(terminalId as string);
+      res.json(stats);
+    } catch (error: any) {
+      console.error('Error getting POS access stats:', error);
+      res.status(500).json({ 
+        error: 'Error obteniendo estadísticas'
+      });
+    }
+  });
+
+  // Generate APK Auth Code
+  app.get('/api/pos/generate-auth-code', authenticateToken, requireRole(['admin']), async (req: Request, res: Response) => {
+    try {
+      const authCode = posAuthService.generateAPKAuthCode();
+      
+      res.json({ 
+        authCode,
+        generatedAt: new Date().toISOString(),
+        description: 'Código completo para integración de autenticación en APK Android'
+      });
+    } catch (error: any) {
+      console.error('Error generating auth code:', error);
+      res.status(500).json({ 
+        error: 'Error generando código de autenticación'
+      });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

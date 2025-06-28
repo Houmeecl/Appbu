@@ -193,3 +193,73 @@ export type Evidence = typeof evidence.$inferSelect;
 export type InsertEvidence = z.infer<typeof insertEvidenceSchema>;
 export type AuditLog = typeof auditLog.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
+// POS Device tables
+export const posDevices = pgTable("pos_devices", {
+  id: serial("id").primaryKey(),
+  terminalId: integer("terminal_id").references(() => posTerminals.id).notNull(),
+  imei: text("imei").notNull().unique(),
+  deviceFingerprint: text("device_fingerprint").notNull(),
+  model: text("model"),
+  brand: text("brand"),
+  androidVersion: text("android_version"),
+  appVersion: text("app_version"),
+  macAddress: text("mac_address"),
+  serialNumber: text("serial_number"),
+  accessKey: text("access_key").notNull(),
+  secretKey: text("secret_key").notNull(),
+  encryptionKey: text("encryption_key").notNull(),
+  trustedStatus: text("trusted_status").default("pending"),
+  riskScore: integer("risk_score").default(0),
+  securityFlags: text("security_flags").array(),
+  lastLocationUpdate: timestamp("last_location_update").defaultNow(),
+  lastHealthCheck: timestamp("last_health_check"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const posSecurityLogs = pgTable("pos_security_logs", {
+  id: serial("id").primaryKey(),
+  deviceId: integer("device_id").references(() => posDevices.id).notNull(),
+  imei: text("imei").notNull(),
+  eventType: text("event_type").notNull(),
+  eventData: jsonb("event_data"),
+  riskLevel: text("risk_level"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  location: jsonb("location"),
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
+// Relations for new tables
+export const posDevicesRelations = relations(posDevices, ({ one, many }) => ({
+  terminal: one(posTerminals, {
+    fields: [posDevices.terminalId],
+    references: [posTerminals.id],
+  }),
+  securityLogs: many(posSecurityLogs),
+}));
+
+export const posSecurityLogsRelations = relations(posSecurityLogs, ({ one }) => ({
+  device: one(posDevices, {
+    fields: [posSecurityLogs.deviceId],
+    references: [posDevices.id],
+  }),
+}));
+
+// Schema validation for new tables
+export const insertPosDeviceSchema = createInsertSchema(posDevices).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPosSecurityLogSchema = createInsertSchema(posSecurityLogs).omit({
+  id: true,
+});
+
+export type PosDevice = typeof posDevices.$inferSelect;
+export type InsertPosDevice = z.infer<typeof insertPosDeviceSchema>;
+
+export type PosSecurityLog = typeof posSecurityLogs.$inferSelect;
+export type InsertPosSecurityLog = z.infer<typeof insertPosSecurityLogSchema>;
